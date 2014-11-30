@@ -2,7 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
-    <OculusSDKPath>M:\ovr_sdk_win_0.4.3\OculusSDK</OculusSDKPath>
+    <OculusSDKPath>..\..\OculusSDK</OculusSDKPath>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />
