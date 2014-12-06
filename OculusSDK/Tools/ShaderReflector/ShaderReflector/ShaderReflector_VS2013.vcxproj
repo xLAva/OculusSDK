@@ -14,6 +14,7 @@
     <ProjectGuid>{ADCFC940-8E3E-40BB-A47A-A10CC311BC0D}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ShaderReflector</RootNamespace>
+    <ProjectName>ShaderReflector</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -41,13 +42,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ProjectDir)..\..\..\LibOVR\Src\CAPI\D3D1X\Shaders\</OutDir>
+    <OutDir>$(ProjectDir)$(Configuration)\..\..\..\..\LibOVR\Src\CAPI\D3D1X\Shaders\</OutDir>
     <IntDir>$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>ShaderReflector</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(ProjectDir)..\..\..\LibOVR\Src\CAPI\D3D1X\Shaders\</OutDir>
+    <OutDir>$(ProjectDir)$(Configuration)\..\..\..\..\LibOVR\Src\CAPI\D3D1X\Shaders\</OutDir>
     <IntDir>$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>ShaderReflector</TargetName>
   </PropertyGroup>

@@ -61,6 +61,7 @@ ${LIBOVRPATH}/Src/Kernel/OVR_Alg.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_Allocator.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_Atomic.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_CRC32.cpp
+${LIBOVRPATH}/Src/Kernel/OVR_DebugHelp.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_File.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_FileFILE.cpp
 ${LIBOVRPATH}/Src/Kernel/OVR_Lockless.cpp
@@ -82,6 +83,7 @@ ${LIBOVRPATH}/Src/Util/Util_Interface.cpp
 ${LIBOVRPATH}/Src/Util/Util_LatencyTest2Reader.cpp
 ${LIBOVRPATH}/Src/Util/Util_Render_Stereo.cpp
 ${LIBOVRPATH}/Src/Util/Util_SystemInfo.cpp
+${LIBOVRPATH}/Src/Util/Util_SysttemGUI.cpp
 ${LIBOVRPATH}/Src/OVR_CAPI.cpp
 ${LIBOVRPATH}/Src/OVR_SerialFormat.cpp
 ${LIBOVRPATH}/Src/OVR_JSON.cpp
