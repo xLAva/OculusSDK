@@ -83,7 +83,7 @@ ${LIBOVRPATH}/Src/Util/Util_Interface.cpp
 ${LIBOVRPATH}/Src/Util/Util_LatencyTest2Reader.cpp
 ${LIBOVRPATH}/Src/Util/Util_Render_Stereo.cpp
 ${LIBOVRPATH}/Src/Util/Util_SystemInfo.cpp
-${LIBOVRPATH}/Src/Util/Util_SysttemGUI.cpp
+${LIBOVRPATH}/Src/Util/Util_SystemGUI.cpp
 ${LIBOVRPATH}/Src/OVR_CAPI.cpp
 ${LIBOVRPATH}/Src/OVR_SerialFormat.cpp
 ${LIBOVRPATH}/Src/OVR_JSON.cpp
