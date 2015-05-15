@@ -234,7 +234,7 @@
 		</data>
 		<key>Resources/Assets/Tuscany/Tuscany_OculusCube.tga</key>
 		<data>
-		YGr+DH6SHhehXXpu/fIvhQK7WPs=
+		U/lWA2eDhfznQr6awoi4WDQ/ef0=
 		</data>
 		<key>Resources/Assets/Tuscany/Tuscany_blueCube.tga</key>
 		<data>
@@ -300,6 +300,10 @@
 		<data>
 		CKmRFw/dDFZ3jvsweBozBlPH1m4=
 		</data>
+		<key>Resources/Assets/Tuscany/traxcalibur.xml</key>
+		<data>
+		0HLrDNv54dnedycE5+tv6nxJ6CQ=
+		</data>
 		<key>Resources/Assets/Tuscany/tree_A01LightingMap.dds</key>
 		<data>
 		w8pBAF6feBjEDtq82eRULAFj/10=
@@ -319,6 +323,10 @@
 		<key>Resources/Assets/Tuscany/tree_CLightingMap.dds</key>
 		<data>
 		aRbzyTqCVZDaXX0KgyVT/bED704=
+		</data>
+		<key>Resources/CameraCalibration.json</key>
+		<data>
+		pfTk/4CzSwGR4edRhuB+HxwJgcw=
 		</data>
 		<key>Resources/Oculus.icns</key>
 		<data>
@@ -557,7 +565,7 @@
 		</data>
 		<key>Resources/Assets/Tuscany/Tuscany_OculusCube.tga</key>
 		<data>
-		YGr+DH6SHhehXXpu/fIvhQK7WPs=
+		U/lWA2eDhfznQr6awoi4WDQ/ef0=
 		</data>
 		<key>Resources/Assets/Tuscany/Tuscany_blueCube.tga</key>
 		<data>
@@ -623,6 +631,10 @@
 		<data>
 		CKmRFw/dDFZ3jvsweBozBlPH1m4=
 		</data>
+		<key>Resources/Assets/Tuscany/traxcalibur.xml</key>
+		<data>
+		0HLrDNv54dnedycE5+tv6nxJ6CQ=
+		</data>
 		<key>Resources/Assets/Tuscany/tree_A01LightingMap.dds</key>
 		<data>
 		w8pBAF6feBjEDtq82eRULAFj/10=
@@ -642,6 +654,10 @@
 		<key>Resources/Assets/Tuscany/tree_CLightingMap.dds</key>
 		<data>
 		aRbzyTqCVZDaXX0KgyVT/bED704=
+		</data>
+		<key>Resources/CameraCalibration.json</key>
+		<data>
+		pfTk/4CzSwGR4edRhuB+HxwJgcw=
 		</data>
 		<key>Resources/Oculus.icns</key>
 		<data>
