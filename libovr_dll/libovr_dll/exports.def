@@ -50,10 +50,6 @@ EXPORTS
 
    ovrHmd_GetLatencyTest2DrawColor
 
-   ovrHmd_RegisterPostDistortionCallback
-   ovrHmd_AddDistortionTimeMeasurement   
-   ovrHmd_GetLatencyTestDrawColor
-
    ovrHmd_GetEyePoses
    ovrHmd_GetHmdPosePerEye
    ovrHmd_StartPerfLog

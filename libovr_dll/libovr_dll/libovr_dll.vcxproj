@@ -94,9 +94,9 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libovrd.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libovr.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>$(ProjectDir)/exports.def</ModuleDefinitionFile>
-      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Win32\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Windows\Win32\Debug\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ForceFileOutput>MultiplyDefinedSymbolOnly</ForceFileOutput>
     </Link>
   </ItemDefinitionGroup>
@@ -111,8 +111,8 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\x64\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libovr64d.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Windows\x64\Debug\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libovr.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>$(ProjectDir)/exports.def</ModuleDefinitionFile>
       <ForceFileOutput>MultiplyDefinedSymbolOnly</ForceFileOutput>
     </Link>
@@ -132,7 +132,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Win32\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Windows\Win32\Release\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libovr.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ForceFileOutput>MultiplyDefinedSymbolOnly</ForceFileOutput>
       <ModuleDefinitionFile>$(ProjectDir)/exports.def</ModuleDefinitionFile>
@@ -153,8 +153,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\x64\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libovr64.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(OculusSDKPath)\LibOVR\Lib\Windows\x64\Release\VS2013;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libovr.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>$(ProjectDir)/exports.def</ModuleDefinitionFile>
       <ForceFileOutput>MultiplyDefinedSymbolOnly</ForceFileOutput>
     </Link>
