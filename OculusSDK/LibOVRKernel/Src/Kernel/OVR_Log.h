@@ -56,6 +56,11 @@ enum LogLevel
     LogLevel_Error = 2
 };
 
+// System log channel name to use.  In Windows this will be the Application Event origin name.
+#ifndef OVR_SYSLOG_NAME
+#define OVR_SYSLOG_NAME L"OculusVR"
+#endif // OVR_SYSLOG_NAME
+
 // LogMessageType describes the type of the log message, controls when it is
 // displayed and what prefix/suffix is given to it. Messages are subdivided into
 // regular and debug logging types. Debug logging is only generated in debug builds.
@@ -117,7 +122,7 @@ class Log
 #endif
 
 public: 
-    Log(unsigned logMask = LogMask_Debug);
+    Log(unsigned logMask = LogMask_Debug, bool defaultLogEnabled = true);
     virtual ~Log();
 
 	typedef Delegate2<void, const char*, LogMessageType> LogHandler;
@@ -128,13 +133,16 @@ public:
     unsigned        GetLoggingMask() const            { return LoggingMask; }
     void            SetLoggingMask(unsigned logMask)  { LoggingMask = logMask; }
 
+    bool            GetDefaultLogEnabled() const                 { return DefaultLogEnabled; }
+    void            SetDefaultLogEnabled(bool defaultLogEnabled) { DefaultLogEnabled = defaultLogEnabled; }
+
     static void     AddLogObserver(CallbackListener<LogHandler>* listener);
 
     // This is the same callback signature as in the CAPI.
-    typedef void (*CAPICallback)(int level, const char* message);
+    typedef void (*CAPICallback)(uintptr_t userData, int level, const char* message);
 
     // This function should be called before OVR::Initialize()
-    static void		SetCAPICallback(CAPICallback callback);
+    static void		SetCAPICallback(CAPICallback callback, uintptr_t userData);
 
 	// Internal
 	// Invokes observers, then calls LogMessageVarg()
@@ -183,16 +191,20 @@ public:
     // By default, only Debug logging is enabled, so to avoid SDK generating console
     // messages in user app (those are always disabled in release build,
     // even if the flag is set). This function is useful in System constructor.
-    static Log*     ConfigureDefaultLog(unsigned logMask = LogMask_Debug)
+    static Log*     ConfigureDefaultLog(unsigned logMask = LogMask_Debug, bool defaultLogEnabled = true)
     {
         Log* log = GetDefaultLog();
         log->SetLoggingMask(logMask);
+        log->SetDefaultLogEnabled(defaultLogEnabled);
         return log;
     }
 
 private:
     // Logging mask described by LogMaskConstants.
     unsigned     LoggingMask;
+
+    // If true then LogMessageVarg writes to stdout, else it writes nothing. LogMessageVargInt is unaffected.
+    bool         DefaultLogEnabled;
 };
 
 

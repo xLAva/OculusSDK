@@ -26,29 +26,99 @@ limitations under the License.
 
 #include "OVR_Allocator.h"
 #include "OVR_DebugHelp.h"
+#include "Kernel/OVR_Std.h"
 #include <stdlib.h>
+#include <stdio.h>
+#include <exception>
 
 #ifdef OVR_OS_MAC
- #include <stdlib.h>
- #include <malloc/malloc.h>
+    #include <stdlib.h>
+    #include <malloc/malloc.h>
 #else
- #include <malloc.h>
+    #include <malloc.h>
 #endif
 
 #if defined(OVR_OS_MS)
- #include "OVR_Win32_IncludeWindows.h"
-#elif defined(OVR_OS_MAC) || defined(OVR_OS_UNIX)
- #include <unistd.h>
- #include <sys/mman.h>
+    #include "OVR_Win32_IncludeWindows.h"
+#else
+    #include <unistd.h>
+    #include <sys/mman.h>
+    #include <execinfo.h>
 #endif
 
+// This will cause an assertion to trip whenever an allocation occurs outside of our
+// custom allocator.  This helps track down allocations that are not being done
+// correctly via OVR_ALLOC().
+// #define OVR_HUNT_UNTRACKED_ALLOCS
+
 namespace OVR {
+
+
+bad_alloc::bad_alloc(const char* description) OVR_NOEXCEPT
+{
+    if(description)
+        OVR_strlcpy(Description, description, sizeof(Description));
+    else
+        Description[0] = '\0';
+
+    OVR_strlcat(Description, " at ", sizeof(Description));
+
+    // read the current backtrace
+    // We cannot attempt to symbolize this here as that would attempt to 
+    // allocate memory. That would be unwise within a bad_alloc exception.
+    void* backtrace_data[20];
+    char  addressDescription[256] = {}; // Write into this temporary instead of member Description in case an exception is thrown.
+
+    #if defined(OVR_OS_MS)
+        int count = CaptureStackBackTrace(2, sizeof(backtrace_data)/sizeof(backtrace_data[0]), backtrace_data, nullptr);
+    #else
+        int count = backtrace(backtrace_data, sizeof(backtrace_data)/sizeof(backtrace_data[0]));
+    #endif
+
+    for(int i = 0; i < count; ++i)
+    {
+        char address[(sizeof(void*) * 2) + 1 + 1]; // hex address string plus possible space plus null terminator.
+        OVR_snprintf(address, sizeof(address), "%x%s", backtrace_data[i], (i + 1 < count) ? " " : "");
+        OVR_strlcat(addressDescription, address, sizeof(addressDescription));
+    }
+
+    OVR_strlcat(Description, addressDescription, sizeof(Description));
+}
+
 
 
 //-----------------------------------------------------------------------------------
 // ***** Allocator
 
-Allocator* Allocator::pInstance = 0;
+Allocator* Allocator::GetInstance()
+{
+    static Allocator* pAllocator = nullptr;
+
+    if(!pAllocator)
+    {
+        static DefaultAllocator defaultAllocator;
+        pAllocator = &defaultAllocator;
+
+        // This is restricted to X64 builds due address space exhaustion in 32-bit builds
+        #if defined(OVR_BUILD_DEBUG) && defined(OVR_CPU_X86_64)
+            static DebugPageAllocator debugAllocator;
+
+            #if defined(OVR_CC_MSVC)
+                // Make _CrtIsValidHeapPointer always return true. The VC++ concurrency library has a bug in that
+                // it's calling _CrtIsValidHeapPointer, which is invalid and recommended against by Microsoft themselves.
+                // We need to deal with this nevertheless. The problem is that the VC++ concurrency library is
+                // calling _CrtIsValidHeapPointer on the default heap instead of the current heap (DebugPageAllocator).
+                // So we modify the _CrtIsValidHeapPointer implementation to always return true. The primary risk
+                // with this change is that there's some code somewhere that uses it for a non-diagnostic purpose.
+                // However this os Oculus-debug-internal and so has no effect on any formally published software.
+                if(OVR::KillCdeclFunction(_CrtIsValidHeapPointer, true)) // If we can successfully kill _CrtIsValidHeapPointer, use our debug allocator.
+                    pAllocator = &debugAllocator;
+            #endif // OVR_CC_MSVC
+        #endif
+    }
+
+    return pAllocator;
+}
 
 // Default AlignedAlloc implementation will delegate to Alloc/Free after doing rounding.
 void* Allocator::AllocAligned(size_t size, size_t align)
@@ -65,14 +135,13 @@ void* Allocator::AllocAligned(size_t size, size_t align)
         *(((size_t*)aligned)-1) = aligned-p;
     }
 
-    trackAlloc((void*)aligned, size);
-
-    return (void*)aligned;
+    return (void*)(aligned);
 }
 
 void Allocator::FreeAligned(void* p)
 {
-    untrackAlloc((void*)p);
+    if (!p)
+        return;
 
     size_t src = size_t(p) - *(((size_t*)p) - 1);
     Free((void*)src);
@@ -91,13 +160,14 @@ void* DefaultAllocator::Alloc(size_t size)
     trackAlloc(p, size);
     return p;
 }
+
 void* DefaultAllocator::AllocDebug(size_t size, const char* file, unsigned line)
 {
-	OVR_UNUSED2(file, line); // should be here for debugopt config
     void* p;
 #if defined(OVR_CC_MSVC) && defined(_CRTDBG_MAP_ALLOC)
     p = _malloc_dbg(size, _NORMAL_BLOCK, file, line);
 #else
+    OVR_UNUSED2(file, line); // should be here for debugopt config
     p = malloc(size);
 #endif
     trackAlloc(p, size);
@@ -109,11 +179,11 @@ void* DefaultAllocator::Realloc(void* p, size_t newSize)
     void* newP = realloc(p, newSize);
 
     // This used to more efficiently check if (newp != p) but static analyzers were erroneously flagging this.
-    if(newP) // Need to check newP because realloc doesn't free p unless it returns a valid newP.
+    if (newP) // Need to check newP because realloc doesn't free p unless it returns a valid newP.
     {
-        #if !defined(__clang_analyzer__)  // The analyzer complains that we are using p after it was freed.
-            untrackAlloc(p);
-        #endif
+#if !defined(__clang_analyzer__)  // The analyzer complains that we are using p after it was freed.
+        untrackAlloc(p);
+#endif
     }
     trackAlloc(newP, newSize);
     return newP;
@@ -160,20 +230,8 @@ void SafeMMapFree(const void* memory, size_t size)
 
 
 //------------------------------------------------------------------------
-// ***** Track Allocations
+// ***** SetLeakTracking
 
-struct TrackedAlloc
-{
-    TrackedAlloc* pNext;
-    TrackedAlloc* pPrev;
-    void*         pAlloc;
-    void*         Callstack[64];
-    uint32_t      FrameCount;
-    uint32_t      Size;
-};
-
-static TrackedAlloc* TrackHead = nullptr;
-static SymbolLookup Symbols;
 static bool IsLeakTracking = false;
 
 void Allocator::SetLeakTracking(bool enabled)
@@ -185,6 +243,11 @@ void Allocator::SetLeakTracking(bool enabled)
     enabled = false;
 #endif
 
+    if (enabled)
+    {
+        SymbolLookup::Initialize();
+    }
+
     IsLeakTracking = enabled;
 }
 
@@ -193,30 +256,77 @@ bool Allocator::IsTrackingLeaks()
     return IsLeakTracking;
 }
 
+
+//------------------------------------------------------------------------
+// ***** Track Allocations
+
+struct TrackedAlloc
+{
+    TrackedAlloc* pNext;
+    TrackedAlloc* pPrev;
+
+    void*         pAlloc;
+    void*         Callstack[64];
+    uint32_t      FrameCount;
+    uint32_t      Size;
+};
+
+static uint32_t PointerHash(const void* p)
+{
+    uintptr_t key = (uintptr_t)p;
+#ifdef OVR_64BIT_POINTERS
+    key = (~key) + (key << 18);
+    key = key ^ (key >> 31);
+    key = key * 21;
+    key = key ^ (key >> 11);
+    key = key + (key << 6);
+    key = key ^ (key >> 22);
+#else
+    key = (key ^ 61) ^ (key >> 16);
+    key = key + (key << 3);
+    key = key ^ (key >> 4);
+    key = key * 0x27d4eb2d;
+    key = key ^ (key >> 15);
+#endif
+    return (uint32_t)key;
+}
+
+#define OVR_HASH_BITS 10
+#define OVR_HASH_SIZE (1 << OVR_HASH_BITS)
+#define OVR_HASH_MASK (OVR_HASH_SIZE - 1)
+
+static TrackedAlloc* AllocHashMap[OVR_HASH_SIZE] = {nullptr};
+static SymbolLookup Symbols;
+
 void Allocator::trackAlloc(void* p, size_t size)
 {
     if (!p || !IsLeakTracking)
         return;
 
-    Lock::Locker locker(&TrackLock);
-
     TrackedAlloc* tracked = (TrackedAlloc*)malloc(sizeof(TrackedAlloc));
-    if (tracked)
+    tracked->pAlloc = p;
+    tracked->FrameCount = (uint32_t)Symbols.GetBacktrace(tracked->Callstack, OVR_ARRAY_COUNT(tracked->Callstack), 2);
+    tracked->Size = (uint32_t)size;
+
+    uint32_t key = PointerHash(p) & OVR_HASH_MASK;
+
+    // Hold track lock and verify leak tracking is still going on
+    Lock::Locker locker(&TrackLock);
+    if (!IsLeakTracking)
     {
-        memset(tracked, 0, sizeof(TrackedAlloc));
-
-        tracked->pAlloc = p;
-        tracked->pPrev = nullptr;
-        tracked->FrameCount = (uint32_t)Symbols.GetBacktrace(tracked->Callstack, OVR_ARRAY_COUNT(tracked->Callstack), 2);
-        tracked->Size = (uint32_t)size;
-
-        tracked->pNext = TrackHead;
-        if (TrackHead)
-        {
-            TrackHead->pPrev = tracked;
-        }
-        TrackHead = tracked;
+        free(tracked);
+        return;
     }
+
+    // Insert into the hash map
+    TrackedAlloc* head = AllocHashMap[key];
+    tracked->pPrev = nullptr;
+    tracked->pNext = head;
+    if (head)
+    {
+        head->pPrev = tracked;
+    }
+    AllocHashMap[key] = tracked;
 }
 
 void Allocator::untrackAlloc(void* p)
@@ -224,9 +334,13 @@ void Allocator::untrackAlloc(void* p)
     if (!p || !IsLeakTracking)
         return;
 
+    uint32_t key = PointerHash(p) & OVR_HASH_MASK;
+
     Lock::Locker locker(&TrackLock);
 
-    for (TrackedAlloc* t = TrackHead; t; t = t->pNext)
+    TrackedAlloc* head = AllocHashMap[key];
+
+    for (TrackedAlloc* t = head; t; t = t->pNext)
     {
         if (t->pAlloc == p)
         {
@@ -238,9 +352,9 @@ void Allocator::untrackAlloc(void* p)
             {
                 t->pNext->pPrev = t->pPrev;
             }
-            if (TrackHead == t)
+            if (head == t)
             {
-                TrackHead = t->pNext;
+                AllocHashMap[key] = t->pNext;
             }
             free(t);
 
@@ -249,7 +363,7 @@ void Allocator::untrackAlloc(void* p)
     }
 }
 
-int DumpMemory()
+int Allocator::DumpMemory()
 {
     const bool symbolLookupWasInitialized = SymbolLookup::IsInitialized();
     const bool symbolLookupAvailable = SymbolLookup::Initialize();
@@ -267,29 +381,67 @@ int DumpMemory()
         lock->DoLock();
 
     int leakCount = 0;
+    const size_t leakReportBufferSize = 8192;
+    char* leakReportBuffer = nullptr;
 
-    for (TrackedAlloc* t = TrackHead; t; t = t->pNext)
+    for (int i = 0; i < OVR_HASH_SIZE; ++i)
     {
-        LogError("[Leak] ** Detected leaked allocation at %p (size = %u) (%d frames)", t->pAlloc, (unsigned)t->Size, (unsigned)t->FrameCount);
-
-        for (size_t i = 0; i < t->FrameCount; ++i)
+        for (TrackedAlloc* t = AllocHashMap[i]; t; t = t->pNext)
         {
-            SymbolInfo symbolInfo;
-
-            if (symbolLookupAvailable && Symbols.LookupSymbol((uint64_t)t->Callstack[i], symbolInfo) && (symbolInfo.filePath[0] || symbolInfo.function[0]))
+            if (!leakReportBuffer) // Lazy allocate this, as it wouldn't be needed unless we had a leak, which we aim to be an unusual case.
             {
-                if(symbolInfo.filePath[0])
-                    LogText("%s(%d): %s\n", symbolInfo.filePath, symbolInfo.fileLineNumber, symbolInfo.function[0] ? symbolInfo.function : "(unknown function)");
-                else
-                    LogText("%p (unknown source file): %s\n", t->Callstack[i], symbolInfo.function);
+                leakReportBuffer = static_cast<char*>(SafeMMapAlloc(leakReportBufferSize));
+                if (!leakReportBuffer)
+                    break;
             }
-            else
+            
+            char line[2048];
+            OVR_snprintf(line, OVR_ARRAY_COUNT(line), "[Leak] ** Detected leaked allocation at %p (size = %u) (%d frames)\n", t->pAlloc, (unsigned)t->Size, (unsigned)t->FrameCount);
+            OVR_strlcat(leakReportBuffer, line, leakReportBufferSize);
+
+            for (size_t j = 0; j < t->FrameCount; ++j)
             {
-                LogText("%p (symbols unavailable)\n", t->Callstack[i]);
+                SymbolInfo symbolInfo;
+
+                if (symbolLookupAvailable && Symbols.LookupSymbol((uint64_t)t->Callstack[j], symbolInfo) && (symbolInfo.filePath[0] || symbolInfo.function[0]))
+                {
+                    if (symbolInfo.filePath[0])
+                        OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%s(%d): %s\n", symbolInfo.filePath, symbolInfo.fileLineNumber, symbolInfo.function[0] ? symbolInfo.function : "(unknown function)");
+                    else
+                        OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (unknown source file): %s\n", t->Callstack[j], symbolInfo.function);
+                }
+                else
+                {
+                    OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (symbols unavailable)\n", t->Callstack[j]);
+                }
+
+                OVR_strlcat(leakReportBuffer, line, leakReportBufferSize);
+            }
+
+            // There are some leaks that aren't real because they are allocated by the Standard Library at runtime but 
+            // aren't freed until shutdown. We don't want to report those, and so we filter them out here.
+            const char* ignoredPhrases[] = { "Concurrency::details" /*add any additional strings here*/ };
+
+            for(size_t j = 0; j < OVR_ARRAY_COUNT(ignoredPhrases); ++j)
+            {
+                if (strstr(leakReportBuffer, ignoredPhrases[j])) // If we should ignore this leak...
+                {
+                    leakReportBuffer[0] = '\0';
+                } 
+            }
+            
+            if (leakReportBuffer[0]) // If we are to report this as a bonafide leak...
+            {
+                ++leakCount;
+                LogText("%s\n", leakReportBuffer);                
             }
         }
+    }
 
-        ++leakCount;
+    if (leakReportBuffer)
+    {
+        SafeMMapFree(leakReportBuffer, leakReportBufferSize);
+        leakReportBuffer = nullptr;
     }
 
     if (lock)
@@ -300,6 +452,7 @@ int DumpMemory()
 
     return leakCount;
 }
+
 
 
 
@@ -332,6 +485,39 @@ Pointer AlignPointerDown(Pointer p, size_t alignment)
 const size_t kFreedBlockArrayMaxSizeDefault = 16384;
 
 
+#if defined(OVR_HUNT_UNTRACKED_ALLOCS)
+
+static const char* WhiteList[] = {
+    "OVR_Allocator.cpp",
+    "OVR_Log.cpp",
+    "crtw32", // Ignore CRT internal allocations
+    nullptr
+};
+
+static int YourAllocHook(int, void *,
+    size_t, int, long,
+    const unsigned char *szFileName, int)
+{
+    if (!szFileName)
+    {
+        return TRUE;
+    }
+
+    for (int i = 0; WhiteList[i] != nullptr; ++i)
+    {
+        if (strstr((const char*)szFileName, WhiteList[i]) != 0)
+        {
+            return TRUE;
+        }
+    }
+
+    OVR_ASSERT(false);
+    return FALSE;
+}
+
+#endif // OVR_HUNT_UNTRACKED_ALLOCS
+
+
 DebugPageAllocator::DebugPageAllocator()
   : FreedBlockArray(nullptr)
   , FreedBlockArrayMaxSize(0)
@@ -347,6 +533,10 @@ DebugPageAllocator::DebugPageAllocator()
   //PageSize(0)
   , Lock()
 {
+    #if defined(OVR_HUNT_UNTRACKED_ALLOCS)
+        _CrtSetAllocHook(YourAllocHook);
+    #endif // OVR_HUNT_UNTRACKED_ALLOCS
+
     #if defined(_WIN32)
         SYSTEM_INFO systemInfo;
         GetSystemInfo(&systemInfo);
@@ -355,7 +545,7 @@ DebugPageAllocator::DebugPageAllocator()
         PageSize = 4096;
     #endif
 
-    SetDelayedFreeCount(kFreedBlockArrayMaxSizeDefault);
+    SetMaxDelayedFreeCount(kFreedBlockArrayMaxSizeDefault);
 }
 
 
@@ -383,7 +573,7 @@ void DebugPageAllocator::Shutdown()
         }
     }
 
-    SetDelayedFreeCount(0);
+    SetMaxDelayedFreeCount(0);
     FreedBlockArraySize = 0;
     FreedBlockArrayOldest = 0;
 }
@@ -391,40 +581,41 @@ void DebugPageAllocator::Shutdown()
 
 void DebugPageAllocator::EnableOverrunDetection(bool enableOverrunDetection, bool enableOverrunGuardBytes)
 {
-    OVR_ASSERT(AllocationCount == 0);
+    // Assert that no allocations have been made, which is a requirement for changing these properties. 
+    // Otherwise future deallocations of these allocations can fail to work properly because these 
+    // settings have changed behind their back.
+    OVR_ASSERT_M(AllocationCount == 0, "DebugPageAllocator::EnableOverrunDetection called when DebugPageAllocator is not in a newly initialized state.");
 
     OverrunPageEnabled       = enableOverrunDetection;
     OverrunGuardBytesEnabled = (enableOverrunDetection && enableOverrunGuardBytes); // Set OverrunGuardBytesEnabled to false if enableOverrunDetection is false.
 }
 
 
-void DebugPageAllocator::SetDelayedFreeCount(size_t delayedFreeCount)
+void DebugPageAllocator::SetMaxDelayedFreeCount(size_t maxDelayedFreeCount)
 {
-    OVR_ASSERT(AllocationCount == 0);
-
     if(FreedBlockArray)
     {
         SafeMMapFree(FreedBlockArray, FreedBlockArrayMaxSize * sizeof(Block));
         FreedBlockArrayMaxSize = 0;
     }
 
-    if(delayedFreeCount)
+    if(maxDelayedFreeCount)
     {
-        FreedBlockArray = (Block*)SafeMMapAlloc(delayedFreeCount * sizeof(Block));
+        FreedBlockArray = (Block*)SafeMMapAlloc(maxDelayedFreeCount * sizeof(Block));
         OVR_ASSERT(FreedBlockArray);
 
         if(FreedBlockArray)
         {
-            FreedBlockArrayMaxSize = delayedFreeCount;
+            FreedBlockArrayMaxSize = maxDelayedFreeCount;
             #if defined(OVR_BUILD_DEBUG)
-                memset(FreedBlockArray, 0, delayedFreeCount * sizeof(Block));
+                memset(FreedBlockArray, 0, maxDelayedFreeCount * sizeof(Block));
             #endif
         }
     }
 }
 
 
-size_t DebugPageAllocator::GetDelayedFreeCount() const
+size_t DebugPageAllocator::GetMaxDelayedFreeCount() const
 {
     return FreedBlockArrayMaxSize;
 }
@@ -630,63 +821,66 @@ void DebugPageAllocator::Free(void *p)
     #if defined(_WIN32)
         if(p)
         {
-            Lock::Locker autoLock(&Lock);
-
-            if(FreedBlockArrayMaxSize)  // If we have a delayed free list...
+            // Creating a scope for the lock
             {
-                // We don't free the page(s) associated with this but rather put them in the FreedBlockArray in an inaccessible state for later freeing.
-                // We do this because we don't want those pages to be available again in the near future, so we can detect use-after-free misakes.
-                Block* pBlockNew;
+                Lock::Locker autoLock(&Lock);
 
-                if(FreedBlockArraySize == FreedBlockArrayMaxSize) // If we have reached freed block capacity... we can start purging old elements from it as a circular queue.
+                if(FreedBlockArrayMaxSize)  // If we have a delayed free list...
                 {
-                    pBlockNew = &FreedBlockArray[FreedBlockArrayOldest];
+                    // We don't free the page(s) associated with this but rather put them in the FreedBlockArray in an inaccessible state for later freeing.
+                    // We do this because we don't want those pages to be available again in the near future, so we can detect use-after-free misakes.
+                    Block* pBlockNew;
 
-                    // The oldest element in the container is FreedBlockArrayOldest.
-                    if(pBlockNew->BlockPtr) // Currently this should always be true.
+                    if(FreedBlockArraySize == FreedBlockArrayMaxSize) // If we have reached freed block capacity... we can start purging old elements from it as a circular queue.
                     {
-                        FreePageMemory(pBlockNew->BlockPtr, pBlockNew->BlockSize);
-                        pBlockNew->Clear();
+                        pBlockNew = &FreedBlockArray[FreedBlockArrayOldest];
+
+                        // The oldest element in the container is FreedBlockArrayOldest.
+                        if(pBlockNew->BlockPtr) // Currently this should always be true.
+                        {
+                            FreePageMemory(pBlockNew->BlockPtr, pBlockNew->BlockSize);
+                            pBlockNew->Clear();
+                        }
+
+                        if(++FreedBlockArrayOldest == FreedBlockArrayMaxSize)
+                            FreedBlockArrayOldest = 0;
+                    }
+                    else // Else we are still building the container and not yet treating it a circular.
+                    {
+                        pBlockNew = &FreedBlockArray[FreedBlockArraySize++];
                     }
 
-                    if(++FreedBlockArrayOldest == FreedBlockArrayMaxSize)
-                        FreedBlockArrayOldest = 0;
-                }
-                else // Else we are still building the container and not yet treating it a circular.
-                {
-                    pBlockNew = &FreedBlockArray[FreedBlockArraySize++];
-                }
+                    pBlockNew->BlockPtr  = GetBlockPtr(p);
+                    pBlockNew->BlockSize = GetBlockSize(p);
 
-                pBlockNew->BlockPtr  = GetBlockPtr(p);
-                pBlockNew->BlockSize = GetBlockSize(p);
-
-                #if defined(OVR_BUILD_DEBUG)
-                    if(OverrunGuardBytesEnabled) // If we have extra bytes at the end of the user's allocation between it and an inaccessible guard page...
-                    {
-                        const size_t   userSize = GetUserSize(p);
-                        const uint8_t* pUserEnd = (static_cast<uint8_t*>(p) + userSize);
-                        const uint8_t* pPageEnd = AlignPointerUp(pUserEnd, PageSize);
-
-                        while(pUserEnd != pPageEnd)
+                    #if defined(OVR_BUILD_DEBUG)
+                        if(OverrunGuardBytesEnabled) // If we have extra bytes at the end of the user's allocation between it and an inaccessible guard page...
                         {
-                            if(*pUserEnd++ != GuardFillByte)
+                            const size_t   userSize = GetUserSize(p);
+                            const uint8_t* pUserEnd = (static_cast<uint8_t*>(p) + userSize);
+                            const uint8_t* pPageEnd = AlignPointerUp(pUserEnd, PageSize);
+
+                            while(pUserEnd != pPageEnd)
                             {
-                                OVR_FAIL();
-                                break;
+                                if(*pUserEnd++ != GuardFillByte)
+                                {
+                                    OVR_FAIL();
+                                    break;
+                                }
                             }
                         }
-                    }
-                #endif
+                    #endif
 
-                DisablePageMemory(pBlockNew->BlockPtr, pBlockNew->BlockSize); // Make it so that future attempts to use this memory result in an exception.
-            }
-            else
-            {
-                FreePageMemory(GetBlockPtr(p), GetBlockSize(p));
-            }
+                    DisablePageMemory(pBlockNew->BlockPtr, pBlockNew->BlockSize); // Make it so that future attempts to use this memory result in an exception.
+                }
+                else
+                {
+                    FreePageMemory(GetBlockPtr(p), GetBlockSize(p));
+                }
 
+                AllocationCount--;
+            }
             untrackAlloc(p);
-            AllocationCount--;
         }
     #else
         untrackAlloc(p);
@@ -771,23 +965,46 @@ void* DebugPageAllocator::AllocCommittedPageMemory(size_t blockSize)
             // because the OS will generate a one-time-only gaurd page exception. We probabl don't want this, as it's
             // more useful for maintaining your own stack than for catching unintended overruns.
             p = VirtualAlloc(nullptr, blockSize, MEM_RESERVE, PAGE_READWRITE);
-            OVR_ASSERT(p);
 
             if(p)
             {
                 // Commit all but the last page. Leave the last page as merely reserved so that reads from or writes
                 // to it result in an immediate exception.
                 p = VirtualAlloc(p, blockSize - PageSize, MEM_COMMIT, PAGE_READWRITE);
-                OVR_ASSERT(p);
             }
         }
         else
         {
             // We need to make it so that all pages are MEM_COMMIT + PAGE_READWRITE.
-
             p = VirtualAlloc(nullptr, blockSize, MEM_COMMIT, PAGE_READWRITE);
         }
-    
+
+        #if defined(OVR_BUILD_DEBUG)
+            if(!p)
+            {
+                // To consider: Make a generic OVRKernel function for formatting system errors. We could move 
+                // the OVRError GetSysErrorCodeString from LibOVR/OVRError.h to LibOVRKernel/OVR_DebugHelp.h
+                DWORD dwLastError = GetLastError();
+                WCHAR osError[256];
+                DWORD osErrorBufferCapacity = OVR_ARRAY_COUNT(osError);
+                CHAR  reportedError[384];
+                DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, (DWORD)dwLastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), osError, osErrorBufferCapacity, nullptr);
+        
+                if (length)
+                {
+                    std::string errorBuff = UCSStringToUTF8String(osError, length + 1);
+                    OVR_snprintf(reportedError, OVR_ARRAY_COUNT(reportedError), "DebugPageAllocator: VirtualAlloc failed with error: %s", errorBuff);
+                }
+                else
+                {
+                    OVR_snprintf(reportedError, OVR_ARRAY_COUNT(reportedError), "DebugPageAllocator: VirtualAlloc failed with error: %d.", dwLastError);
+                }
+
+                //LogError("%s", reportedError); Disabled because this call turns around and allocates memory, yet we may be in a broken or exhausted memory situation.
+                OVR_FAIL_M(reportedError);
+            }
+        #endif
+
         return p;
     #else
         OVR_UNUSED2(blockSize, OverrunPageEnabled);

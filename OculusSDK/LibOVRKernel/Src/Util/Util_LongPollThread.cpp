@@ -82,7 +82,7 @@ int LongPollThread::Run()
     // While not terminated,
     do
     {
-        watchdog.Feed(10000);
+        watchdog.Feed(20000);
 
         PollSubject.Call();
 

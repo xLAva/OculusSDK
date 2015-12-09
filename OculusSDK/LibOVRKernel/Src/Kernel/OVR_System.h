@@ -160,8 +160,7 @@ public:
 
     // Initializes System core.  Users can override memory implementation by passing
     // a different Allocator here.
-    static void OVR_CDECL Init(Log* log = Log::ConfigureDefaultLog(LogMask_Debug),
-                               Allocator *palloc = DefaultAllocator::InitSystemSingleton());
+    static void OVR_CDECL Init(Log* log = Log::ConfigureDefaultLog(LogMask_Debug));
 
 	// De-initializes System more, finalizing the threading system and destroying
     // the global memory allocator.

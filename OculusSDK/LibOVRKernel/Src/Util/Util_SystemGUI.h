@@ -22,8 +22,11 @@ limitations under the License.
 
 *************************************************************************************/
 
-#ifndef OVR_Util_GUI_h
-#define OVR_Util_GUI_h
+#ifndef OVR_Util_SystemGUI_h
+#define OVR_Util_SystemGUI_h
+
+
+#include <stdarg.h>
 
 
 namespace OVR { namespace Util {
@@ -34,7 +37,9 @@ namespace OVR { namespace Util {
 
     bool DisplayMessageBoxF(const char* pTitle, const char* pFormat, ...);
 
+    bool DisplayMessageBoxVaList(const char* pTitle, const char* pFormat, va_list argList);
+
 } } // namespace OVR::Util
 
 
-#endif
+#endif // OVR_Util_SystemGUI_h

@@ -25,8 +25,8 @@ limitations under the License.
 *************************************************************************************/
 
 #include "Util_Watchdog.h"
-#include <Kernel/OVR_DebugHelp.h>
-#include <Kernel/OVR_Win32_IncludeWindows.h>
+#include "Kernel/OVR_DebugHelp.h"
+#include "Kernel/OVR_Win32_IncludeWindows.h"
 
 #if defined(OVR_OS_LINUX) || defined(OVR_OS_MAC)
     #include <unistd.h>
@@ -141,7 +141,7 @@ int WatchDogObserver::Run()
                         String threadListOutput, moduleListOutput;
                         symbolLookup.ReportThreadCallstacks(threadListOutput);
                         symbolLookup.ReportModuleInformation(moduleListOutput);
-                        LogText("---DEADLOCK STATE---\n\n%s\n\n%s\n---END OF DEADLOCK STATE---\n", threadListOutput.ToCStr(), moduleListOutput.ToCStr());
+                        LogError("---DEADLOCK STATE---\n\n%s\n\n%s\n---END OF DEADLOCK STATE---", threadListOutput.ToCStr(), moduleListOutput.ToCStr());
                     }
 
                     if (IsReporting)

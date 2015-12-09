@@ -38,8 +38,7 @@ namespace OVR {
 
 #define String_LengthIsSize (size_t(1) << String::Flag_LengthIsSizeShift)
 
-String::DataDesc String::NullData = {String_LengthIsSize, 1, {0} };
-
+String::DataDesc String::NullData = {String_LengthIsSize, AtomicInt<int32_t>(1), {0} };
 
 String::String()
 {
@@ -775,5 +774,82 @@ size_t    StringBuffer::InsertCharAt(uint32_t c, size_t posAt)
     Insert(buf, posAt, len);
     return (size_t)len;
 }
+
+
+
+
+
+
+std::wstring UTF8StringToUCSString(const char* pUTF8, size_t length)
+{
+    if(length == (size_t)-1)
+        length = strlen(pUTF8);
+
+    std::wstring returnValue(length, wchar_t(0)); // We'll possibly trim this value below.
+
+    // Note that DecodeString doesn't handle UTF8 encoding errors.
+    size_t decodedLength = OVR::UTF8Util::DecodeString(&returnValue[0], pUTF8, (intptr_t)length);
+    OVR_ASSERT(decodedLength <= length);
+
+    returnValue.resize(decodedLength);
+
+    return returnValue;
+}
+
+std::wstring UTF8StringToUCSString(const std::string& sUTF8)
+{
+    return UTF8StringToUCSString(sUTF8.data(), sUTF8.size());
+}
+
+
+std::wstring OVRStringToUCSString(const OVR::String& sOVRUTF8)
+{
+    return UTF8StringToUCSString(sOVRUTF8.ToCStr(), sOVRUTF8.GetSize());
+}
+
+
+
+
+std::string UCSStringToUTF8String(const wchar_t* pUCS, size_t length)
+{
+    if(length == (size_t)-1)
+        length = wcslen(pUCS);
+
+    std::string sUTF8;
+    intptr_t    requiredUTF8Length = OVR::UTF8Util::GetEncodeStringSize(pUCS, length); // GetEncodeStringSize returns required strlen. We assume it returns an error if < 0.
+
+    if (requiredUTF8Length >= 0)
+    {
+        sUTF8.resize(requiredUTF8Length);
+        OVR::UTF8Util::EncodeString(&sUTF8[0], pUCS, length);
+    }
+
+    return sUTF8;
+}
+
+std::string UCSStringToUTF8String(const std::wstring& sUCS)
+{
+    return UCSStringToUTF8String(sUCS.data(), sUCS.size());
+}
+
+
+
+OVR::String UCSStringToOVRString(const wchar_t* pUCS, size_t length)
+{
+    if(length == (size_t)-1)
+        length = wcslen(pUCS);
+
+    // We use a std::string intermediate because OVR::String doesn't support resize or assignment without preallocated data.
+    const std::string sUTF8 = UCSStringToUTF8String(pUCS, length); 
+    const OVR::String sOVRUTF8(sUTF8.data(), sUTF8.size());
+    return sOVRUTF8;
+}
+
+OVR::String UCSStringToOVRString(const std::wstring& sUCS)
+{
+    return UCSStringToOVRString(sUCS.data(), sUCS.length());
+}
+
+
 
 } // OVR

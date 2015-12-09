@@ -35,7 +35,11 @@ namespace OVR {
 // Add/remove operations on callbacks happen infrequently, and are already fairly
 // serialized in order of construction by design.  Therefore contention for this
 // lock between call()/shutdown() is the main concern and is also rare.
-Lock CallbackEmitterBase::EmitterLock;
+Lock* CallbackEmitterBase::GetEmitterLock()
+{
+    static Lock lock;
+    return &lock;
+}
 
 
 } // namespace OVR

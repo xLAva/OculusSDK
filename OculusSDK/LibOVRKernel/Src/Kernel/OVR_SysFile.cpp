@@ -31,6 +31,7 @@ limitations under the License.
 #include <stdio.h>
 
 #include "OVR_SysFile.h"
+#include "OVR_File.h"
 #include "OVR_Log.h"
 
 namespace OVR {
@@ -66,7 +67,7 @@ public:
     virtual bool        Flush()                                              { return  0; }
     virtual int         Seek(int /*offset*/, int /*origin*/)                 { return -1; }
     virtual int64_t     LSeek(int64_t /*offset*/, int /*origin*/)            { return -1; }
-    
+
     virtual int         CopyFromStream(File * /*pstream*/, int /*byteSize*/)  { return -1; }
     virtual bool        Close()                                              { return  0; }
 };

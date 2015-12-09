@@ -237,13 +237,10 @@ inline char* OVR_CDECL OVR_strchr(char* str, char c)
     return strchr(str, c);
 }
 
-inline const char* OVR_strrchr(const char* str, char c)
+const char* OVR_CDECL OVR_strrchr(const char* pString, int c);
+inline char* OVR_CDECL OVR_strrchr(char* pString, int c)
 {
-    size_t len = OVR_strlen(str);
-    for (size_t i=len; i>0; i--)     
-        if (str[i]==c) 
-            return str+i;
-    return 0;
+    return (char*)OVR_strrchr((const char*)pString, c);
 }
 
 inline const uint8_t* OVR_CDECL OVR_memrchr(const uint8_t* str, size_t size, uint8_t c)
@@ -253,15 +250,6 @@ inline const uint8_t* OVR_CDECL OVR_memrchr(const uint8_t* str, size_t size, uin
         if (str[i] == c) 
             return str + i;
     }
-    return 0;
-}
-
-inline char* OVR_CDECL OVR_strrchr(char* str, char c)
-{
-    size_t len = OVR_strlen(str);
-    for (size_t i=len; i>0; i--)     
-        if (str[i]==c) 
-            return str+i;
     return 0;
 }
 

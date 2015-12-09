@@ -794,7 +794,10 @@ char* JSON::PrintObject(int depth, bool fmt)
         
         if (fmt)
         {
-            *ptr++='\n';
+#ifdef OVR_OS_WIN32
+            *ptr++ = '\r';
+#endif
+            *ptr++ = '\n';
             for (i=0;i<depth-1;i++)
                 *ptr++='\t';
         }

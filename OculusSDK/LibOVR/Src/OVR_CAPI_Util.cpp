@@ -21,18 +21,24 @@ limitations under the License.
 *************************************************************************************/
 
 
-#include <OVR_CAPI_Util.h>
-#include "OVR_StereoProjection.h"
+#include <Extras/OVR_CAPI_Util.h>
+#include <Extras/OVR_StereoProjection.h>
+
 
 #if defined(_MSC_VER)
     #include <emmintrin.h>
     #pragma intrinsic(_mm_pause)
 #endif
 
+#if defined(_WIN32)
+    #include <windows.h>
+#endif
+
 
 
 // Used to generate projection from ovrEyeDesc::Fov
-ovrMatrix4f ovrMatrix4f_Projection(ovrFovPort fov, float znear, float zfar, unsigned int projectionModFlags)
+OVR_PUBLIC_FUNCTION(ovrMatrix4f) ovrMatrix4f_Projection(
+    ovrFovPort fov, float znear, float zfar, unsigned int projectionModFlags)
 {
     bool rightHanded    = (projectionModFlags & ovrProjection_RightHanded) > 0;
     bool flipZ          = (projectionModFlags & ovrProjection_FarLessThanNear) > 0;
@@ -43,12 +49,51 @@ ovrMatrix4f ovrMatrix4f_Projection(ovrFovPort fov, float znear, float zfar, unsi
     return OVR::CreateProjection(rightHanded , isOpenGL, fov, OVR::StereoEye_Center, znear, zfar, flipZ, farAtInfinity);
 }
 
+OVR_PUBLIC_FUNCTION(ovrTimewarpProjectionDesc) ovrTimewarpProjectionDesc_FromProjection(
+    ovrMatrix4f Projection, unsigned int projectionModFlags)
+{
+    ovrTimewarpProjectionDesc res;
+    res.Projection22 = Projection.M[2][2];
+    res.Projection23 = Projection.M[2][3];
+    res.Projection32 = Projection.M[3][2];
 
-ovrMatrix4f ovrMatrix4f_OrthoSubProjection(ovrMatrix4f projection, ovrVector2f orthoScale,
-                                                      float orthoDistance, float hmdToEyeViewOffsetX)
+    if ((res.Projection32 != 1.0f) && (res.Projection32 != -1.0f))
+    {
+        // This is a very strange projection matrix, and probably won't work.
+        // If you need it to work, please contact Oculus and let us know your usage scenario.
+    }
+
+    if ( ( projectionModFlags & ovrProjection_ClipRangeOpenGL ) != 0 )
+    {
+        // Internally we use the D3D range of [0,+w] not the OGL one of [-w,+w], so we need to convert one to the other.
+        // Note that the values in the depth buffer, and the actual linear depth we want is the same for both APIs,
+        // the difference is purely in the values inside the projection matrix.
+
+        // D3D does this:
+        // depthBuffer =             ( ProjD3D.M[2][2] * linearDepth + ProjD3D.M[2][3] ) / ( linearDepth * ProjD3D.M[3][2] );
+        // OGL does this:
+        // depthBuffer = 0.5 + 0.5 * ( ProjOGL.M[2][2] * linearDepth + ProjOGL.M[2][3] ) / ( linearDepth * ProjOGL.M[3][2] );
+
+        // Therefore:
+        // ProjD3D.M[2][2] = 0.5 * ( ProjOGL.M[2][2] + ProjOGL.M[3][2] );
+        // ProjD3D.M[2][3] = 0.5 *   ProjOGL.M[2][3];
+        // ProjD3D.M[3][2] =         ProjOGL.M[3][2];
+
+        res.Projection22 = 0.5f * ( Projection.M[2][2] + Projection.M[3][2] );
+        res.Projection23 = 0.5f *   Projection.M[2][3];
+        res.Projection32 =          Projection.M[3][2];
+    }
+    return res;
+}
+
+OVR_PUBLIC_FUNCTION(ovrMatrix4f) ovrMatrix4f_OrthoSubProjection(
+    ovrMatrix4f projection, ovrVector2f orthoScale,
+    float orthoDistance, float hmdToEyeViewOffsetX)
 {
     ovrMatrix4f ortho;
-    float orthoHorizontalOffset = hmdToEyeViewOffsetX / orthoDistance;
+    // Negative sign is correct!
+    // If the eye is offset to the left, then the ortho view needs to be offset to the right relative to the camera.
+    float orthoHorizontalOffset = -hmdToEyeViewOffsetX / orthoDistance;
 
     /*
     // Current projection maps real-world vector (x,y,1) to the RT.
@@ -96,30 +141,71 @@ ovrMatrix4f ovrMatrix4f_OrthoSubProjection(ovrMatrix4f projection, ovrVector2f o
 }
 
 
-double ovr_WaitTillTime(double absTime)
+OVR_PUBLIC_FUNCTION(void) ovr_CalcEyePoses(ovrPosef headPose,
+    const ovrVector3f hmdToEyeViewOffset[2],
+    ovrPosef outEyePoses[2])
 {
-    double       initialTime = ovr_GetTimeInSeconds();
-    double       newTime     = initialTime;
-    
-    while(newTime < absTime)
+    if (!hmdToEyeViewOffset || !outEyePoses)
     {
-        for (int j = 0; j < 5; j++)
-        {
-            #if defined(__x86_64__) || defined(_M_AMD64) || defined(__i386__) ||  defined(_M_IX86) // Intel architecture...
-                #if defined(__GNUC__) || defined(__clang__)
-                    asm volatile("pause" ::: "memory");
-                #elif defined(_MSC_VER)
-                    _mm_pause();
-                #endif
-            #endif
-        }
-
-        newTime = ovr_GetTimeInSeconds();
+        return;
     }
 
-    return (newTime - initialTime);
+    using OVR::Posef;
+    using OVR::Vector3f;
+
+    // Currently HmdToEyeViewOffset is only a 3D vector
+    outEyePoses[0] = Posef(headPose.Orientation, ((Posef)headPose).Apply((Vector3f)hmdToEyeViewOffset[0]));
+    outEyePoses[1] = Posef(headPose.Orientation, ((Posef)headPose).Apply((Vector3f)hmdToEyeViewOffset[1]));
 }
 
 
+OVR_PUBLIC_FUNCTION(void) ovr_GetEyePoses(ovrSession session, long long frameIndex, ovrBool latencyMarker,
+    const ovrVector3f hmdToEyeViewOffset[2],
+    ovrPosef outEyePoses[2],
+    ovrTrackingState* outHmdTrackingState)
+{
+    double frameTime = ovr_GetPredictedDisplayTime(session, frameIndex);
+    ovrTrackingState trackingState = ovr_GetTrackingState(session, frameTime, latencyMarker);
+    ovr_CalcEyePoses(trackingState.HeadPose.ThePose, hmdToEyeViewOffset, outEyePoses);
+
+    if ( outHmdTrackingState != nullptr )
+    {
+        *outHmdTrackingState = trackingState;
+    }
+}
 
 
+OVR_PUBLIC_FUNCTION(ovrDetectResult) ovr_Detect(int timeoutMsec)
+{
+    // Initially we assume everything is not running.
+    ovrDetectResult result;
+    result.IsOculusHMDConnected = ovrFalse;
+    result.IsOculusServiceRunning = ovrFalse;
+
+#if defined(_WIN32)
+    // Attempt to open the named event.
+    HANDLE hServiceEvent = ::OpenEventW(SYNCHRONIZE, FALSE, OVR_HMD_CONNECTED_EVENT_NAME);
+
+    // If event exists,
+    if (hServiceEvent != nullptr)
+    {
+        // This indicates that the Oculus Runtime is installed and running.
+        result.IsOculusServiceRunning = ovrTrue;
+
+        // Poll for event state.
+        DWORD objectResult = ::WaitForSingleObject(hServiceEvent, timeoutMsec);
+
+        // If the event is signaled,
+        if (objectResult == WAIT_OBJECT_0)
+        {
+            // This indicates that the Oculus HMD is connected.
+            result.IsOculusHMDConnected = ovrTrue;
+        }
+
+        ::CloseHandle(hServiceEvent);
+    }
+#endif // _WIN32
+
+
+    return result;
+}

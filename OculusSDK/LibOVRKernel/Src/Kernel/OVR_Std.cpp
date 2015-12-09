@@ -34,6 +34,25 @@ namespace OVR {
 
 // Source for functions not available on all platforms is included here.
 
+const char* OVR_CDECL OVR_strrchr(const char* pString, int c)
+{
+    const char* pFound = nullptr;
+
+    for (char cCurrent; cCurrent = *pString, cCurrent != '\0'; ++pString)
+    {
+        if (cCurrent == c)
+            pFound = pString;
+    }
+
+    if (pFound)
+        return pFound;
+
+    if (c == '\0')
+        return pString;
+
+    return nullptr;
+}
+
 size_t OVR_CDECL OVR_strlcpy(char* dest, const char* src, size_t destsize)
 {
     const char* s = src;
@@ -246,10 +265,12 @@ double OVR_CDECL OVR_strtod(const char* str, char** tailptr)
 #if !defined(OVR_OS_ANDROID) // The Android C library doesn't have localeconv.
     const char s = *localeconv()->decimal_point;
 
-    if (s != '.') // If the C library is using a locale that is not using '.' as a decimal point, we convert the input str's '.' chars to the char that the C library expects (e.g. ',' or ' ').
+    // Always do the locale switch to spot problem files early.
     {
-        char buffer[347 + 1];
-
+        // I don't know why 347, that's just what was in this code before I got here.
+        const int MaxStringLength = 347;
+        OVR_ASSERT ( OVR_strlen ( str ) <= MaxStringLength );
+        char buffer[MaxStringLength + 1];
         OVR_strcpy(buffer, sizeof(buffer), str);
 
         // Ensure null-termination of string
@@ -276,9 +297,10 @@ double OVR_CDECL OVR_strtod(const char* str, char** tailptr)
 
         return retval;
     }
+#else
+    return strtod(str, tailptr);
 #endif
 
-    return strtod(str, tailptr);
 }
 
 

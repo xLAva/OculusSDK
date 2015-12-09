@@ -55,8 +55,14 @@ public:
     // Returns global high-resolution application timer in seconds.
     static double  OVR_STDCALL GetSeconds();    
 
+    // This may return a recorded time if Replaying a recording
+    static double  OVR_STDCALL GetVirtualSeconds();
+
     // Returns time in Nanoseconds, using highest possible system resolution.
     static uint64_t  OVR_STDCALL GetTicksNanos();
+
+    // This may return a recorded time if Replaying a recording
+    static uint64_t  OVR_STDCALL GetVirtualTicksNanos();
 
 #ifdef OVR_OS_MS
     static double OVR_STDCALL GetPerfFrequencyInverse();
@@ -68,11 +74,15 @@ public:
     static uint32_t  OVR_STDCALL GetTicksMs()
     { return  uint32_t(GetTicksNanos() / 1000000); }
 
+    // This may return a recorded time if Replaying a recording
+    static uint32_t  OVR_STDCALL GetVirtualTicksMs()
+    { return  uint32_t(GetVirtualTicksNanos() / 1000000); }
+
     // for recorded data playback
-    static void SetFakeSeconds(double fakeSeconds, bool enable = true) 
+    static void SetVirtualSeconds(double virtualSeconds, bool enable = true) 
     { 
-        FakeSeconds = fakeSeconds; 
-        useFakeSeconds = enable; 
+        VirtualSeconds = virtualSeconds; 
+        useVirtualSeconds = enable; 
     }
 
 private:
@@ -81,9 +91,9 @@ private:
     static void initializeTimerSystem();
     static void shutdownTimerSystem();
 
-    // for recorded data playback
-    static double FakeSeconds;
-    static bool   useFakeSeconds;
+    // for recorded data playback.
+    static double VirtualSeconds;
+    static bool   useVirtualSeconds;
     
     #if defined(OVR_OS_ANDROID)
         // Android-specific data

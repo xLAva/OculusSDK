@@ -306,7 +306,8 @@ static SharedMemoryInternal* AttemptOpenSharedMemory(const char* fileName, int m
     DWORD mapDesiredAccess = openReadOnly ? FILE_MAP_READ : FILE_MAP_WRITE;
 
     // Open file mapping
-    HANDLE hFileMapping = OpenFileMappingA(mapDesiredAccess, TRUE, fileName);
+    std::wstring wFileName = UTF8StringToUCSString(fileName);
+    HANDLE hFileMapping = OpenFileMappingW(mapDesiredAccess, TRUE, wFileName.c_str());
 
     // If file was mapped unsuccessfully,
     if (NULL == hFileMapping)
@@ -331,16 +332,18 @@ static SharedMemoryInternal* AttemptCreateSharedMemory(const char* fileName, int
     // + Grant All (GA) to System (SY)
     // + Grant All (GA) to Built-in Administrators (BA)
     // + Grant Read-Only (GR) or Read-Write (GWGR) to Interactive Users (IU) - ie. games
-    static const char* DACLString_ReadOnly = "D:P(A;OICI;GA;;;SY)(A;OICI;GA;;;BA)(A;OICI;GR;;;IU)";
-    static const char* DACLString_ReadWrite = "D:P(A;OICI;GA;;;SY)(A;OICI;GA;;;BA)(A;OICI;GWGR;;;IU)";
+    static const wchar_t* DACLString_ReadOnly = L"D:P(A;OICI;GA;;;SY)(A;OICI;GA;;;BA)(A;OICI;GR;;;IU)";
+    static const wchar_t* DACLString_ReadWrite = L"D:P(A;OICI;GA;;;SY)(A;OICI;GA;;;BA)(A;OICI;GWGR;;;IU)";
 
     // Select the remote process access mode
-    const char* remoteAccessString =
+    const wchar_t* remoteAccessString =
         allowRemoteWrite ? DACLString_ReadWrite : DACLString_ReadOnly;
+
+
 
     // Attempt to convert access string to security attributes
     // Note: This will allocate the security descriptor with LocalAlloc() and must be freed later
-    BOOL bConvertOkay = ConvertStringSecurityDescriptorToSecurityDescriptorA(
+    BOOL bConvertOkay = ConvertStringSecurityDescriptorToSecurityDescriptorW(
         remoteAccessString, SDDL_REVISION_1, &security.lpSecurityDescriptor, NULL);
 
     // If conversion fails,
@@ -353,13 +356,15 @@ static SharedMemoryInternal* AttemptCreateSharedMemory(const char* fileName, int
     // Interpret the access mode as a page protection code
     int pageProtectCode = openReadOnly ? PAGE_READONLY : PAGE_READWRITE;
 
+    std::wstring wFileName = UTF8StringToUCSString(fileName);
+
     // Attempt to create a file mapping
-    HANDLE hFileMapping = CreateFileMappingA(INVALID_HANDLE_VALUE,    // From page file
+    HANDLE hFileMapping = CreateFileMappingW(INVALID_HANDLE_VALUE,    // From page file
                                              &security,                // Security attributes
                                              pageProtectCode,        // Read-only?
                                              0,                        // High word for size = 0
                                              minSize,                // Low word for size
-                                             fileName);                // Name of global shared memory file
+                                             wFileName.c_str());                // Name of global shared memory file
 
     // Free the security descriptor buffer
     LocalFree(security.lpSecurityDescriptor);

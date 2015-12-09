@@ -42,13 +42,6 @@ limitations under the License.
 
 namespace OVR {
 
-// ***** Declared classes
-class   FileConstants;
-class   File;
-class   DelegatedFile;
-class   BufferedFile;
-
-
 // ***** Flags for File & Directory accesses
 
 class FileConstants

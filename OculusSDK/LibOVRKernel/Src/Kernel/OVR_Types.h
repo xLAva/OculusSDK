@@ -28,6 +28,7 @@ limitations under the License.
 #ifndef OVR_Types_h
 #define OVR_Types_h
 
+#include <cstddef>
 #include "OVR_Compiler.h"
 
 
@@ -37,7 +38,6 @@ limitations under the License.
 #     error "Oculus does not support VS2010 without SP1 installed: It will crash in Release mode"
 #  endif
 #endif
-
 
 //-----------------------------------------------------------------------------------
 // ****** Operating system identification
@@ -212,6 +212,12 @@ limitations under the License.
 #    pragma warning(disable : 4714)  // _force_inline not inlined
 #    pragma warning(disable : 4786)  // Debug variable name longer than 255 chars
 #  endif // (OVR_CC_MSVC<1300)
+#if (OVR_CC_MSVC>1800)
+#   pragma warning(disable: 4265)    // Class has virtual functions, but destructor is not virtual
+#   pragma warning(disable: 4312)    // Conversion from 'type1' to 'type2' of greater size
+#   pragma warning(disable: 4311)    // Pointer truncation from 'type' to 'type'
+#   pragma warning(disable: 4302)    // Truncation from 'type 1' to 'type 2'
+#endif // OVR_CC_MSVC>1800
 #endif // (OVR_CC_MSVC)
 
 
@@ -244,8 +250,8 @@ limitations under the License.
 //-----------------------------------------------------------------------------------
 // ***** int8_t, int16_t, etc.
 
-#if defined(OVR_CC_MSVC) && (OVR_CC_VER <= 1500) // VS2008 and earlier
-    typedef signed char        int8_t; 
+#if defined(OVR_CC_MSVC) && (OVR_CC_VERSION <= 1500) // VS2008 and earlier
+    typedef signed char        int8_t;
     typedef unsigned char     uint8_t;
     typedef signed short      int16_t;
     typedef unsigned short   uint16_t;
@@ -265,9 +271,10 @@ namespace OVR {
 
 typedef char            Char;
 
+
 // Pointer-sized integer
 typedef size_t          UPInt;
-typedef ptrdiff_t       SPInt;
+typedef std::ptrdiff_t  SPInt;
 
 
 #if defined(OVR_OS_MS)
@@ -312,9 +319,15 @@ typedef uint64_t        UInt64;
 //linux PID is a signed int32 (already defined)
 //win32 PID is an unsigned int64
 #ifdef OVR_OS_WIN32
-//process ID representation
-typedef unsigned long pid_t;
+    //process ID representation
+    typedef unsigned long pid_t;
 #endif
+
+// OVR_INVALID_PID defines an invalid process id in a portable way. 
+#if !defined(OVR_INVALID_PID)
+    #define OVR_INVALID_PID 0
+#endif
+
 
 struct OVR_GUID
 {
@@ -326,7 +339,7 @@ struct OVR_GUID
 
 
 
-} // OVR
+} // namespace OVR
 
 
 
@@ -614,15 +627,30 @@ struct OVR_GUID
         #include <stdlib.h>
         #define OVR_FAIL_M(message)      do { OVR_DEBUG_BREAK; exit(0); } while(0)
         #define OVR_FAIL()               do { OVR_DEBUG_BREAK; exit(0); } while(0)
+        #define OVR_FAIL_F(...)          do { OVR_DEBUG_BREAK; exit(0); } while(0)
         #define OVR_ASSERT_M(p, message) do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
         #define OVR_ASSERT(p)            do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
+        #define OVR_ASSERT_F(p, ...)     do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
     #else
+        #include <stdlib.h>
+
+        namespace OVR{ void OVR_Fail_F(const char* format, ...); }
+
+        // OVR::IsAutomationRunning() is a flag that indicates the current process is running automated tests.
+        // Tests are usually running using GoogleTest or some other test harness
+        //
+        // Using OVR_DEBUG_BREAK will cause the test to bail out and kill the current process.
+        // abort() will fail the test and let subsequent tests run.
         #define OVR_FAIL_M(message)                                                                            \
             {                                                                                                  \
                 intptr_t ovrAssertUserParam;                                                                   \
                 OVR::OVRAssertionHandler ovrAssertUserHandler = OVR::GetAssertionHandler(&ovrAssertUserParam); \
                                                                                                                \
-                if (ovrAssertUserHandler && !OVR::OVRIsDebuggerPresent())                                      \
+                if (OVR::IsAutomationRunning() && !OVR::OVRIsDebuggerPresent())                                \
+                {                                                                                              \
+					/* Do nothing to allow error code examination */										   \
+                }                                                                                              \
+                else if (ovrAssertUserHandler && !OVR::OVRIsDebuggerPresent())                                 \
                 {                                                                                              \
                     ovrAssertUserHandler(ovrAssertUserParam, "Assertion failure", message);                    \
                 }                                                                                              \
@@ -635,7 +663,12 @@ struct OVR_GUID
         #define OVR_FAIL()  \
             OVR_FAIL_M("Assertion failure")  
 
-        // void OVR_ASSERT_M(bool expression, const char message);
+        #define OVR_FAIL_F(format, ...)         \
+            do {                                \
+                OVR_Fail_F(format, __VA_ARGS__) \
+            } while(0)
+
+        // void OVR_ASSERT_M(bool expression, const char* message);
         // Note: The expression below is expanded into all usage of this assertion macro. 
         // We should try to minimize the size of the expanded code to the extent possible.
         #define OVR_ASSERT_M(p, message)   \
@@ -646,6 +679,14 @@ struct OVR_GUID
 
         // void OVR_ASSERT(bool expression);
         #define OVR_ASSERT(p) OVR_ASSERT_M((p), (#p))
+
+        // void OVR_ASSERT_F(bool expression, const char* format, ...);
+        #define OVR_ASSERT_F(p, format, ...)         \
+            do {                                     \
+                if (!(p))                            \
+                    OVR_Fail_F(format, __VA_ARGS__); \
+            } while(0)
+
     #endif
 
     // Acts the same as OVR_ASSERT in debug builds. Acts the same as OVR_UNUSED in release builds.
@@ -662,10 +703,12 @@ struct OVR_GUID
 
     // In debug builds this tests the given expression; if false then executes OVR_DEBUG_BREAK,
     // if true then no action. Has no effect in release builds.
-    #define OVR_FAIL_M(message) ((void)0)
-    #define OVR_FAIL()          ((void)0)
-    #define OVR_ASSERT_M(p, m)  ((void)0)
-    #define OVR_ASSERT(p)       ((void)0)
+    #define OVR_FAIL_M(message)  ((void)0)
+    #define OVR_FAIL()           ((void)0)
+    #define OVR_FAIL_F(...)      ((void)0)
+    #define OVR_ASSERT_M(p, m)   ((void)0)
+    #define OVR_ASSERT(p)        ((void)0)
+    #define OVR_ASSERT_F(p, ...) ((void)0)
 
     // Acts the same as OVR_ASSERT in debug builds. Acts the same as OVR_UNUSED in release builds.
     // Example usage: OVR_ASSERT_AND_UNUSED(x < 30, x);
@@ -696,39 +739,13 @@ namespace OVR
 
     // Implements the default assertion handler.
     intptr_t DefaultAssertionHandler(intptr_t userParameter, const char* title, const char* message);
+    
+    // Checks if the current application is an automated test
+    bool IsAutomationRunning();
 
     // Currently defined in OVR_DebugHelp.cpp
     bool OVRIsDebuggerPresent();
 }
-
-
-// ------------------------------------------------------------------------
-// ***** static_assert
-//
-// Portable support for C++11 static_assert.
-// Acts as if the following were declared:
-//     void static_assert(bool const_expression, const char* msg);
-//
-// Example usage:
-//     static_assert(sizeof(int32_t) == 4, "int32_t expected to be 4 bytes.");
-
-#if defined(OVR_CPP_NO_STATIC_ASSERT) // If the compiler doesn't provide it intrinsically...
-    #if !defined(OVR_SA_UNUSED)
-    #if defined(OVR_CC_GNU) || defined(OVR_CC_CLANG)
-        #define OVR_SA_UNUSED __attribute__((unused))
-    #else
-        #define OVR_SA_UNUSED
-    #endif
-    #define OVR_SA_PASTE(a,b) a##b
-    #define OVR_SA_HELP(a,b)  OVR_SA_PASTE(a,b)
-    #endif
-
-    #if defined(__COUNTER__)
-        #define static_assert(expression, msg) typedef char OVR_SA_HELP(compileTimeAssert, __COUNTER__) [((expression) != 0) ? 1 : -1] OVR_SA_UNUSED
-    #else
-        #define static_assert(expression, msg) typedef char OVR_SA_HELP(compileTimeAssert, __LINE__) [((expression) != 0) ? 1 : -1] OVR_SA_UNUSED
-    #endif
-#endif
 
 
 // ------------------------------------------------------------------------

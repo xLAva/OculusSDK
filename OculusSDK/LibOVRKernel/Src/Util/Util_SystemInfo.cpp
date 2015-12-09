@@ -34,16 +34,24 @@ limitations under the License.
 #include <sys/utsname.h>
 #endif
 
-/*
-// Disabled, can't link RiftConfigUtil
+// Includes used for GetBaseOVRPath()
 #ifdef OVR_OS_WIN32
-#define _WIN32_DCOM
-#include <comdef.h>
-#include <Wbemidl.h>
+    #include "Kernel/OVR_Win32_IncludeWindows.h"
+    #include <Shlobj.h>
+    #include <Shlwapi.h>
 
-# pragma comment(lib, "wbemuuid.lib")
+    #pragma comment(lib, "Shlwapi")
+#elif defined(OVR_OS_MS) // Other Microsoft OSs
+    // Nothing, thanks.
+#else
+    #include <dirent.h>
+    #include <sys/stat.h>
+
+    #ifdef OVR_OS_LINUX
+        #include <unistd.h>
+        #include <pwd.h>
+    #endif
 #endif
-*/
 
 
 namespace OVR { namespace Util {
@@ -54,7 +62,7 @@ namespace OVR { namespace Util {
 #pragma comment(lib, "version.lib")
 
 typedef BOOL(WINAPI *LPFN_ISWOW64PROCESS) (HANDLE, PBOOL);
-BOOL Is64BitWindows()
+bool Is64BitWindows()
 {
 #if defined(_WIN64)
     return TRUE;  // 64-bit programs run only on Win64
@@ -113,7 +121,9 @@ uint64_t GetGuidInt()
     {
         lastTime = Timer::GetTicksNanos();
         Thread::MSleep(1);
-        Thread::MSleep(0);
+        // Note this does not actually sleep for "only" 1 millisecond
+        // necessarily.  Since we do not call timeBeginPeriod(1) explicitly
+        // before invoking this function it may be sleeping for 10+ milliseconds.
         thisTime = Timer::GetTicksNanos();
         uint64_t diff = thisTime - lastTime;
         unsigned int diff4Bits = (unsigned int)(diff & 15);
@@ -124,6 +134,7 @@ uint64_t GetGuidInt()
 
     return g;
 }
+
 String GetGuidString()
 {
     uint64_t guid = GetGuidInt();
@@ -139,7 +150,7 @@ String GetGuidString()
 
 const char * GetProcessInfo()
 {
-	#if defined (OVR_CPU_X86_64	)
+#if defined (OVR_CPU_X86_64	)
     return "64 bit";
 #elif defined (OVR_CPU_X86)
     return "32 bit";
@@ -149,58 +160,58 @@ const char * GetProcessInfo()
 }
 #ifdef OVR_OS_WIN32
 
-
 String OSVersionAsString()
 {
-    return GetSystemFileVersionString("\\kernel32.dll");
+    return GetSystemFileVersionStringW(L"\\kernel32.dll");
 }
-String GetSystemFileVersionString(String filePath)
+String GetSystemFileVersionStringW(wchar_t filePath[MAX_PATH])
 {
-    char strFilePath[MAX_PATH]; // Local variable
-    UINT sysDirLen = GetSystemDirectoryA(strFilePath, ARRAYSIZE(strFilePath));
+    wchar_t strFilePath[MAX_PATH]; // Local variable
+    UINT sysDirLen = GetSystemDirectoryW(strFilePath, ARRAYSIZE(strFilePath));
     if (sysDirLen != 0)
     {
-        OVR_strcat(strFilePath, MAX_PATH, filePath.ToCStr());
-        return GetFileVersionString(strFilePath);
+        OVR_wcscat(strFilePath, MAX_PATH, filePath);
+        return GetFileVersionStringW(strFilePath);
     }
     else
     {
-        return "GetSystemDirectoryA failed";
+        return "GetSystemDirectoryW failed";
     }
 }
+
 // See http://stackoverflow.com/questions/940707/how-do-i-programatically-get-the-version-of-a-dll-or-exe-file
-String GetFileVersionString(String filePath)
+String GetFileVersionStringW(wchar_t filePath[MAX_PATH])
 {
     String result;
 
-    DWORD dwSize = GetFileVersionInfoSizeA(filePath.ToCStr(), NULL);
+    DWORD dwSize = GetFileVersionInfoSizeW(filePath, NULL);
     if (dwSize == 0)
     {
-        OVR_DEBUG_LOG(("Error in GetFileVersionInfoSizeA: %d (for %s)", GetLastError(), filePath.ToCStr()));
-        result = filePath + " not found";
+        OVR_DEBUG_LOG(("Error in GetFileVersionInfoSizeW: %d (for %s)", GetLastError(), String(filePath).ToCStr()));
+        result = String(filePath) + " not found";
     }
     else
     {
         BYTE* pVersionInfo = new BYTE[dwSize];
         if (!pVersionInfo)
         {
-            OVR_DEBUG_LOG(("Out of memory allocating %d bytes (for %s)", dwSize, filePath.ToCStr()));
+            OVR_DEBUG_LOG(("Out of memory allocating %d bytes (for %s)", dwSize, filePath));
             result = "Out of memory";
         }
         else
         {
-            if (!GetFileVersionInfoA(filePath.ToCStr(), 0, dwSize, pVersionInfo))
+            if (!GetFileVersionInfoW(filePath, 0, dwSize, pVersionInfo))
             {
-                OVR_DEBUG_LOG(("Error in GetFileVersionInfo: %d (for %s)", GetLastError(), filePath.ToCStr()));
+                OVR_DEBUG_LOG(("Error in GetFileVersionInfo: %d (for %s)", GetLastError(), String(filePath).ToCStr()));
                 result = "Cannot get version info";
             }
             else
             {
                 VS_FIXEDFILEINFO* pFileInfo = NULL;
                 UINT              pLenFileInfo = 0;
-                if (!VerQueryValue(pVersionInfo, TEXT("\\"), (LPVOID*)&pFileInfo, &pLenFileInfo))
+                if (!VerQueryValueW(pVersionInfo, L"\\", (LPVOID*)&pFileInfo, &pLenFileInfo))
                 {
-                    OVR_DEBUG_LOG(("Error in VerQueryValue: %d (for %s)", GetLastError(), filePath.ToCStr()));
+                    OVR_DEBUG_LOG(("Error in VerQueryValueW: %d (for %s)", GetLastError(), String(filePath).ToCStr()));
                     result = "File has no version info";
                 }
                 else
@@ -224,33 +235,38 @@ String GetFileVersionString(String filePath)
     return result;
 }
 
-
 String GetDisplayDriverVersion()
 {
-    return GetSystemFileVersionString("\\OVRDisplay32.dll");
+    if (Is64BitWindows())
+    {
+        return GetSystemFileVersionStringW(L"\\OVRDisplay64.dll");
+    }
+    else
+    {
+        return GetSystemFileVersionStringW(L"\\OVRDisplay32.dll");
+    }
 }
+
 String GetCameraDriverVersion()
 {
-    return GetSystemFileVersionString("\\drivers\\OCUSBVID.sys");
+    return GetSystemFileVersionStringW(L"\\drivers\\OCUSBVID.sys");
 }
 
 // From http://stackoverflow.com/questions/9524309/enumdisplaydevices-function-not-working-for-me
 void GetGraphicsCardList( Array< String > &gpus)
 {
-	gpus.Clear();
+    gpus.Clear();
+    DISPLAY_DEVICEW dd;
+    dd.cb = sizeof(dd);
 
-	DISPLAY_DEVICEA dd;
-
-	dd.cb = sizeof(dd);
-
-	DWORD deviceNum = 0;
-	while( EnumDisplayDevicesA(NULL, deviceNum, &dd, 0) ){
+    DWORD deviceNum = 0;
+    while( EnumDisplayDevicesW(NULL, deviceNum, &dd, 0) )
+    {
         if (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)
-		    gpus.PushBack(dd.DeviceString);
-		deviceNum++;
-	}
+            gpus.PushBack(String(dd.DeviceString));
+        deviceNum++;
+    }
 }
-
 
 String GetProcessorInfo()
 {
@@ -299,17 +315,6 @@ String GetCameraDriverVersion()
 }
 
 #else
-
-// used for driver files
-String GetFileVersionString(String /*filePath*/)
-{
-    return String();
-}
-
-String GetSystemFileVersionString(String /*filePath*/)
-{
-    return String();
-}
 
 String GetDisplayDriverVersion()
 {
@@ -413,4 +418,300 @@ String GetProcessorInfo()
 #endif //OVR_OS_MAC
 #endif // WIN32
 
-} } // namespace OVR { namespace Util {
+
+//-----------------------------------------------------------------------------
+// Get the path for local app data.
+
+String GetBaseOVRPath(bool create_dir)
+{
+#if defined(OVR_OS_WIN32)
+
+    wchar_t path[MAX_PATH];
+    ::SHGetFolderPathW(0, CSIDL_LOCAL_APPDATA, NULL, 0, path);
+
+    OVR_wcscat(path, MAX_PATH, L"\\Oculus");
+
+    if (create_dir)
+    {   // Create the Oculus directory if it doesn't exist
+        DWORD attrib = ::GetFileAttributesW(path);
+        bool exists = attrib != INVALID_FILE_ATTRIBUTES && (attrib & FILE_ATTRIBUTE_DIRECTORY);
+        if (!exists)
+        {   
+            ::CreateDirectoryW(path, NULL);
+        }
+    }
+
+#elif defined(OVR_OS_MS) // Other Microsoft OSs
+
+    // TODO: figure this out.
+    OVR_UNUSED ( create_dir );
+    path = "";
+        
+#elif defined(OVR_OS_MAC)
+
+    const char* home = getenv("HOME");
+    path = home;
+    path += "/Library/Preferences/Oculus";
+
+    if (create_dir)
+    {   // Create the Oculus directory if it doesn't exist
+        DIR* dir = opendir(path);
+        if (dir == NULL)
+        {
+            mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+        }
+        else
+        {
+            closedir(dir);
+        }
+    }
+
+#else
+
+    const char* home = getenv("HOME");
+    String path = home;
+    path += "/.config/Oculus";
+
+    if (create_dir)
+    {   // Create the Oculus directory if it doesn't exist
+        DIR* dir = opendir(path);
+        if (dir == NULL)
+        {
+            mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+        }
+        else
+        {
+            closedir(dir);
+        }
+    }
+
+#endif
+
+    return String(path);
+}
+
+#ifdef OVR_OS_MS
+//widechar functions are Windows only for now
+bool GetRegistryStringW(const wchar_t* pSubKey, const wchar_t* stringName, wchar_t out[MAX_PATH], bool wow64value, bool currentUser)
+{
+    HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+    DWORD dwType = REG_SZ;
+    HKEY hKey = 0;
+    wchar_t value[MAX_PATH + 1]; // +1 because RegQueryValueEx doesn't necessarily 0-terminate.
+    DWORD value_length = MAX_PATH;
+
+    if ((RegOpenKeyExW(root, pSubKey, 0, KEY_QUERY_VALUE | (wow64value ? KEY_WOW64_32KEY : 0), &hKey) != ERROR_SUCCESS) ||
+        (RegQueryValueExW(hKey, stringName, NULL, &dwType, (LPBYTE)&value, &value_length) != ERROR_SUCCESS) || (dwType != REG_SZ))
+    {
+        out[0] = L'\0';
+        RegCloseKey(hKey);
+        return false;
+    }
+    RegCloseKey(hKey);
+
+    value[value_length] = L'\0';
+    wcscpy_s(out, MAX_PATH, value);
+    return true;
+}
+
+
+bool GetRegistryDwordW(const wchar_t* pSubKey, const wchar_t* stringName, DWORD& out, bool wow64value, bool currentUser)
+{
+    HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+    DWORD dwType = REG_DWORD;
+    HKEY hKey = 0;
+    DWORD value_length = sizeof(DWORD);
+
+    if ((RegOpenKeyExW(root, pSubKey, 0, KEY_QUERY_VALUE | (wow64value ? KEY_WOW64_32KEY : 0), &hKey) != ERROR_SUCCESS) ||
+        (RegQueryValueExW(hKey, stringName, NULL, &dwType, (LPBYTE)&out, &value_length) != ERROR_SUCCESS) || (dwType != REG_DWORD))
+    {
+        out = 0;
+        RegCloseKey(hKey);
+        return false;
+    }
+    RegCloseKey(hKey);
+
+    return true;
+}
+
+bool GetRegistryBinaryW(const wchar_t* pSubKey, const wchar_t* stringName, LPBYTE out, DWORD* size, bool wow64value, bool currentUser)
+{
+    HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+    DWORD dwType = REG_BINARY;
+    HKEY hKey = 0;
+
+    if ((RegOpenKeyExW(root, pSubKey, 0, KEY_QUERY_VALUE | (wow64value ? KEY_WOW64_32KEY : 0), &hKey) != ERROR_SUCCESS) ||
+        (RegQueryValueExW(hKey, stringName, NULL, &dwType, out, size) != ERROR_SUCCESS) || (dwType != REG_BINARY))
+    {
+        *out = 0;
+        RegCloseKey(hKey);
+        return false;
+    }
+    RegCloseKey(hKey);
+
+    return true;
+}
+
+
+// When reading Oculus registry keys, we recognize that the user may have inconsistently 
+// used a DWORD 1 vs. a string "1", and so we support either when checking booleans.
+bool GetRegistryBoolW(const wchar_t* pSubKey, const wchar_t* stringName, bool defaultValue, bool wow64value, bool currentUser)
+{
+    wchar_t out[MAX_PATH];
+    if (GetRegistryStringW(pSubKey, stringName, out, wow64value, currentUser))
+    {
+        return (_wtoi64(out) != 0);
+    }
+
+    DWORD dw;
+    if (GetRegistryDwordW(pSubKey, stringName, dw, wow64value, currentUser))
+    {
+        return (dw != 0);
+    }
+
+    return defaultValue;
+}
+
+bool SetRegistryBinaryW(const wchar_t* pSubKey, const wchar_t* stringName, LPBYTE value, DWORD size, bool wow64value, bool currentUser)
+{
+    HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+    HKEY hKey = 0;
+
+    if ((RegCreateKeyExW(root, pSubKey, 0, nullptr, 0, KEY_CREATE_SUB_KEY | KEY_SET_VALUE | (wow64value ? KEY_WOW64_32KEY : 0), nullptr, &hKey, nullptr) != ERROR_SUCCESS) ||
+        (RegSetValueExW(hKey, stringName, 0, REG_BINARY, value, size) != ERROR_SUCCESS))
+    {
+        RegCloseKey(hKey);
+        return false;
+    }
+    RegCloseKey(hKey);
+    return true;
+}
+
+bool DeleteRegistryValue(const wchar_t* pSubKey, const wchar_t* stringName, bool wow64value, bool currentUser)
+{
+    HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+    HKEY hKey = 0;
+
+    if (RegOpenKeyExW(root, pSubKey, 0, KEY_ALL_ACCESS | (wow64value ? KEY_WOW64_32KEY : 0), &hKey) != ERROR_SUCCESS)
+    {
+        RegCloseKey(hKey);
+        return false;
+    }
+    bool result = (RegDeleteValueW(hKey, stringName) == ERROR_SUCCESS);
+
+    RegCloseKey(hKey);
+    return result;
+}
+
+
+
+bool GetOVRRuntimePathW(wchar_t out[MAX_PATH])
+{
+    if (Is64BitWindows())
+    {
+        if (!GetRegistryStringW(L"Software\\Wow6432Node\\Oculus VR, LLC\\Oculus Runtime", L"Location", out))
+        {
+            return false;
+        }
+    }
+    else if (!GetRegistryStringW(L"Software\\Oculus VR, LLC\\Oculus Runtime", L"Location", out))
+    {
+        return false;
+    }
+    return true;
+}
+#endif // OVR_OS_MS
+
+bool GetOVRRuntimePath(String& runtimePath)
+{
+    runtimePath = "";
+#ifdef OVR_OS_MS
+    wchar_t path[MAX_PATH];
+    if (GetOVRRuntimePathW(path))
+    {
+        runtimePath = String(path);
+        return true;
+    }
+#endif // OVR_OS_MS
+    //mac/linux uses environment variables
+    return false;
+}
+
+bool GetDefaultFirmwarePath(String& firmwarePath)
+{
+    if (!GetOVRRuntimePath(firmwarePath))
+    {
+        return false;
+    }
+    else
+    {
+        firmwarePath + "\\Tools\\FirmwareBundle.json";
+        return true;
+    }
+}
+
+bool GetFirmwarePathFromService(OVR::String& firmwarePath, int numSearchDirs)
+{
+#ifdef OVR_OS_MS
+    firmwarePath = "";
+
+    //Try relative file locations
+    wchar_t path[MAX_PATH]; // FIXME: This is Windows-specific.
+    // Get full path to our module.
+    int pathlen = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
+    OVR_ASSERT_AND_UNUSED(pathlen, pathlen);
+
+    //try the registry default
+    if (GetOVRRuntimePath(firmwarePath) && !firmwarePath.IsEmpty())
+    {
+        if (OVR_strncmp(OVR::String(path), firmwarePath, firmwarePath.GetSize()) == 0)
+        {
+            //we are in the default runtime directory.
+            firmwarePath += "/Tools/Firmware/";
+            return true;
+        }
+        else
+        {
+            firmwarePath = "";
+        }
+    }
+
+    if (firmwarePath.IsEmpty())
+    {
+        //try internal path.
+        wchar_t relpath[MAX_PATH];
+        relpath[0] = L'\0';
+        for (int i = 0; i < numSearchDirs; i++)
+        {
+            wchar_t* trailingSlash = wcsrchr(path, L'\\');
+            if (trailingSlash == nullptr)
+            {
+                break; // no more paths to traverse
+            }
+            *(trailingSlash + 1) = L'\0'; //delete after the last trailing slash
+            //Then attach this prefix
+            OVR_wcscat(path, MAX_PATH, L"Firmware\\");
+            //And attempt to find the path
+            if (::PathFileExistsW(path))
+            {
+                firmwarePath = String(path);
+                return true;
+            }
+            else
+            {
+                *trailingSlash = L'\0'; //remove trailing slash, traversing up 1 directory
+            }
+        }
+    }
+
+    firmwarePath = L"";
+
+#else
+    OVR_UNUSED2(firmwarePath, numSearchDirs);
+    //#error "FIXME"
+#endif
+
+    return false;
+}
+
+}} // namespace OVR::Util

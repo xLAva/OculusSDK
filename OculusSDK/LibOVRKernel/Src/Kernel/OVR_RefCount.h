@@ -62,7 +62,7 @@ class   RefCountNTSImpl;
 class RefCountImplCore
 {
 protected:
-   volatile int RefCount;
+   AtomicInt<int> RefCount;
 
 public:
     // RefCountImpl constructor always initializes RefCount to 1 by default.
@@ -506,6 +506,48 @@ public:
     }
 
 };
+
+
+// LockedPtr
+//
+// Helper class to simplify thread-safety of the TrackingManager.
+// It wraps the Ptr<> object it contains in a Lock.
+template<class T>
+class LockedPtr
+{
+public:
+    LockedPtr(Lock* lock = nullptr) :
+        TheLock(lock)
+    {
+    }
+
+    void Set(T* value)
+    {
+        OVR_ASSERT(TheLock);
+        TheLock->DoLock();
+        Ptr<T> oldPtr = ThePtr; // Keep a reference to the old ptr
+        ThePtr = value; // Change/decrement the old ptr (cannot die here due to oldPtr)
+        TheLock->Unlock();
+
+        // Release the old Ptr reference here, outside of the lock
+        // so that the object will not die while TheLock is held.
+    }
+
+    template<class S>
+    void Get(Ptr<S>& outputPtr) const
+    {
+        OVR_ASSERT(TheLock);
+        TheLock->DoLock();
+        Ptr<T> retval = ThePtr;
+        TheLock->Unlock();
+        outputPtr = retval;
+    }
+
+protected:
+    mutable Lock* TheLock;
+    Ptr<T> ThePtr;
+};
+
 
 } // OVR
 
