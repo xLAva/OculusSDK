@@ -9,7 +9,3 @@
 #else
 #define LIBOVR_DLL_API __declspec(dllimport)
 #endif
-
-extern "C" {
-	LIBOVR_DLL_API void ovr_Initialize(void);
-}
