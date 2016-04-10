@@ -8,7 +8,7 @@
 #define OVR_CAPI_Util_h
 
 
-#include "OVR_CAPI.h"
+#include "../OVR_CAPI.h"
 
 
 #ifdef __cplusplus
