@@ -10,23 +10,15 @@ EXPORTS
    ovr_Create
    ovr_Destroy
    ovr_GetSessionStatus
-   ovr_GetEnabledCaps
-   ovr_SetEnabledCaps
-   ovr_GetTrackingCaps
-   ovr_ConfigureTracking
-   ovr_RecenterPose
+   ovr_RecenterTrackingOrigin
    ovr_GetTrackingState
    ovr_GetInputState
    ovr_SetControllerVibration
-   ovr_DestroySwapTextureSet
-   ovr_DestroyMirrorTexture
    ovr_GetFovTextureSize
    ovr_GetRenderDesc
    ovr_SubmitFrame
    ovr_GetPredictedDisplayTime
    ovr_GetTimeInSeconds
-   ovr_ResetBackOfHeadTracking
-   ovr_ResetMulticameraTracking
    ovr_GetBool
    ovr_SetBool
    ovr_GetInt
@@ -43,7 +35,13 @@ EXPORTS
    ovrMatrix4f_OrthoSubProjection
    ovr_CalcEyePoses
    ovr_GetEyePoses
-   ovr_CreateSwapTextureSetGL
+   ovr_DestroyTextureSwapChain
+   ovr_DestroyMirrorTexture
+   ovr_CreateTextureSwapChainGL
+   ovr_GetTextureSwapChainBufferGL
    ovr_CreateMirrorTextureGL
-   ovr_CreateSwapTextureSetD3D11
-   ovr_CreateMirrorTextureD3D11
+   ovr_GetMirrorTextureBufferGL
+   ovr_GetTextureSwapChainLength
+   ovr_GetTextureSwapChainCurrentIndex
+   ovr_GetTextureSwapChainDesc
+   ovr_CommitTextureSwapChain
