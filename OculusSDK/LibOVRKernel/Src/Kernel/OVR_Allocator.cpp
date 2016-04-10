@@ -5,16 +5,16 @@ Content     :   Installable memory allocator implementation
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,12 +31,30 @@ limitations under the License.
 #include <stdio.h>
 #include <exception>
 
-#ifdef OVR_OS_MAC
-    #include <stdlib.h>
-    #include <malloc/malloc.h>
-#else
-    #include <malloc.h>
-#endif
+// Define this to use jemalloc rather than the default CRT allocator.
+//#define OVR_USE_JEMALLOC
+
+// Only use jemalloc in release mode, since in debug mode we use the DebugPageAllocator,
+// or are use the debug CRT that has more features for debugging memory issues.
+#if !defined(OVR_BUILD_DEBUG) && !defined(OVR_USE_JEMALLOC)
+    // If on Visual Studio,
+    #if defined(_MSC_VER)
+        // We currently only have static libraries for Visual Studio 2013 built.
+        // The jemalloc project is built as part of the OVRServer solution,
+        // and its binaries are checked in so that it does not slow the build.
+        // If compiling with Visual Studio 2013, 2015, and newer,
+        #if (_MSC_VER >= 1800)
+            #define OVR_USE_JEMALLOC
+        #endif
+    #endif
+#endif // _WIN32
+
+// prevent jemalloc to be used until we figure out the issue
+#undef OVR_USE_JEMALLOC
+
+#ifdef OVR_USE_JEMALLOC
+    #include "src/jemalloc/jemalloc.h"
+#endif // OVR_USE_JEMALLOC
 
 #if defined(OVR_OS_MS)
     #include "OVR_Win32_IncludeWindows.h"
@@ -51,7 +69,92 @@ limitations under the License.
 // correctly via OVR_ALLOC().
 // #define OVR_HUNT_UNTRACKED_ALLOCS
 
+// If we are benchmarking the allocator, define this.
+// !!Do not check this in uncommented!!
+//#define OVR_BENCHMARK_ALLOCATOR
+
 namespace OVR {
+
+
+
+#ifdef OVR_BENCHMARK_ALLOCATOR
+#error "This code should not be compiled!  It really hurts performance.  Only enable this during testing."
+
+    // This gets the double constant that can convert ::QueryPerformanceCounter
+    // LARGE_INTEGER::QuadPart into a number of seconds.
+    // This is the same as in the Timer code except we cannot use Timer code
+    // because the allocator gets called during static initializers before
+    // the Timer code is initialized.
+    static double GetPerfFrequencyInverse()
+    {
+        // Static value containing frequency inverse of performance counter
+        static double PerfFrequencyInverse = 0.;
+
+        // If not initialized,
+        if (PerfFrequencyInverse == 0.)
+        {
+            // Initialize the inverse (same as in Timer code)
+            LARGE_INTEGER freq;
+            ::QueryPerformanceFrequency(&freq);
+            PerfFrequencyInverse = 1.0 / (double)freq.QuadPart;
+        }
+
+        return PerfFrequencyInverse;
+    }
+
+    // Record a delta timestamp for an allocator operation
+    static void ReportDT(LARGE_INTEGER& t0, LARGE_INTEGER& t1)
+    {
+        // Stats lock to avoid multiple threads corrupting the shared stats
+        // This lock is the reason we cannot enable this code.
+        static Lock theLock;
+
+        // Running stats
+        static double timeSum = 0.; // Sum of dts
+        static double timeMax = 0.; // Max dt in set
+        static int timeCount = 0; // Number of dts recorded
+
+        // Calculate delta time between start and end of operation
+        // based on the provided QPC timestamps
+        double dt = (t1.QuadPart - t0.QuadPart) * GetPerfFrequencyInverse();
+
+        // Init the average and max to print to zero.
+        // If they stay zero we will not print them.
+        double ravg = 0., rmax = 0.;
+        {
+            // Hold the stats lock
+            Lock::Locker locker(&theLock);
+
+            // Accumulate stats
+            timeSum += dt;
+            if (dt > timeMax)
+                timeMax = dt;
+
+            // Every X recordings,
+            if (++timeCount >= 1000)
+            {
+                // Set average/max to print
+                ravg = timeSum / timeCount;
+                rmax = timeMax;
+
+                timeSum = 0;
+                timeMax = 0;
+                timeCount = 0;
+            }
+        }
+
+        // If printing,
+        if (rmax != 0.)
+        {
+            LogText("------- Allocator Stats: AvgOp = %lf usec, MaxOp = %lf usec\n", ravg * 1000000., rmax * 1000000.);
+        }
+    }
+#define OVR_ALLOC_BENCHMARK_START() LARGE_INTEGER t0; ::QueryPerformanceCounter(&t0);
+#define OVR_ALLOC_BENCHMARK_END()   LARGE_INTEGER t1; ::QueryPerformanceCounter(&t1); ReportDT(t0, t1);
+#else
+#define OVR_ALLOC_BENCHMARK_START()
+#define OVR_ALLOC_BENCHMARK_END()
+#endif // OVR_BENCHMARK_ALLOCATOR
 
 
 bad_alloc::bad_alloc(const char* description) OVR_NOEXCEPT
@@ -99,22 +202,29 @@ Allocator* Allocator::GetInstance()
         static DefaultAllocator defaultAllocator;
         pAllocator = &defaultAllocator;
 
+        bool safeToUseDebugAllocator = true;
+
+        #if defined(OVR_BUILD_DEBUG) && defined(OVR_CC_MSVC)
+            // Make _CrtIsValidHeapPointer always return true. The VC++ concurrency library has a bug in that
+            // it's calling _CrtIsValidHeapPointer, which is invalid and recommended against by Microsoft themselves.
+            // We need to deal with this nevertheless. The problem is that the VC++ concurrency library is
+            // calling _CrtIsValidHeapPointer on the default heap instead of the current heap (DebugPageAllocator).
+            // So we modify the _CrtIsValidHeapPointer implementation to always return true. The primary risk
+            // with this change is that there's some code somewhere that uses it for a non-diagnostic purpose.
+            // However this os Oculus-debug-internal and so has no effect on any formally published software.
+            safeToUseDebugAllocator = OVR::KillCdeclFunction(_CrtIsValidHeapPointer, true); // If we can successfully kill _CrtIsValidHeapPointer, use our debug allocator.
+        #endif
+
         // This is restricted to X64 builds due address space exhaustion in 32-bit builds
         #if defined(OVR_BUILD_DEBUG) && defined(OVR_CPU_X86_64)
-            static DebugPageAllocator debugAllocator;
-
-            #if defined(OVR_CC_MSVC)
-                // Make _CrtIsValidHeapPointer always return true. The VC++ concurrency library has a bug in that
-                // it's calling _CrtIsValidHeapPointer, which is invalid and recommended against by Microsoft themselves.
-                // We need to deal with this nevertheless. The problem is that the VC++ concurrency library is
-                // calling _CrtIsValidHeapPointer on the default heap instead of the current heap (DebugPageAllocator).
-                // So we modify the _CrtIsValidHeapPointer implementation to always return true. The primary risk
-                // with this change is that there's some code somewhere that uses it for a non-diagnostic purpose.
-                // However this os Oculus-debug-internal and so has no effect on any formally published software.
-                if(OVR::KillCdeclFunction(_CrtIsValidHeapPointer, true)) // If we can successfully kill _CrtIsValidHeapPointer, use our debug allocator.
-                    pAllocator = &debugAllocator;
-            #endif // OVR_CC_MSVC
+            if (safeToUseDebugAllocator)
+            {
+                static DebugPageAllocator debugAllocator;
+                pAllocator = &debugAllocator;
+            }
         #endif
+
+        OVR_UNUSED(safeToUseDebugAllocator);
     }
 
     return pAllocator;
@@ -123,28 +233,44 @@ Allocator* Allocator::GetInstance()
 // Default AlignedAlloc implementation will delegate to Alloc/Free after doing rounding.
 void* Allocator::AllocAligned(size_t size, size_t align)
 {
-    OVR_ASSERT((align & (align-1)) == 0);
+#ifdef OVR_USE_JEMALLOC
+    OVR_ALLOC_BENCHMARK_START();
+    void* p = je_aligned_alloc(align, size);
+    OVR_ALLOC_BENCHMARK_END();
+    return p;
+#else // OVR_USE_JEMALLOC
+
+    OVR_ALLOC_BENCHMARK_START();
+    OVR_ASSERT((align & (align - 1)) == 0);
     align = (align > sizeof(size_t)) ? align : sizeof(size_t);
-    size_t p = (size_t)Alloc(size+align);
+    size_t p = (size_t)Alloc(size + align);
     size_t aligned = 0;
     if (p)
     {
-        aligned = (size_t(p) + align-1) & ~(align-1);
-        if (aligned == p) 
+        aligned = (size_t(p) + align - 1) & ~(align - 1);
+        if (aligned == p)
             aligned += align;
-        *(((size_t*)aligned)-1) = aligned-p;
+        *(((size_t*)aligned) - 1) = aligned - p;
     }
-
+    OVR_ALLOC_BENCHMARK_END();
     return (void*)(aligned);
+
+#endif // OVR_USE_JEMALLOC
 }
 
 void Allocator::FreeAligned(void* p)
 {
-    if (!p)
-        return;
-
-    size_t src = size_t(p) - *(((size_t*)p) - 1);
-    Free((void*)src);
+    OVR_ALLOC_BENCHMARK_START();
+#ifdef OVR_USE_JEMALLOC
+    je_free(p);
+#else // OVR_USE_JEMALLOC
+    if (p)
+    {
+        size_t src = size_t(p) - *(((size_t*)p) - 1);
+        Free((void*)src);
+    }
+#endif // OVR_USE_JEMALLOC
+    OVR_ALLOC_BENCHMARK_END();
 }
 
 
@@ -156,7 +282,14 @@ void Allocator::FreeAligned(void* p)
 
 void* DefaultAllocator::Alloc(size_t size)
 {
+    OVR_ALLOC_BENCHMARK_START();
+#ifdef OVR_USE_JEMALLOC
+    void* p = je_malloc(size);
+#else // OVR_USE_JEMALLOC
     void* p = malloc(size);
+#endif // OVR_USE_JEMALLOC
+    OVR_ALLOC_BENCHMARK_END();
+
     trackAlloc(p, size);
     return p;
 }
@@ -164,19 +297,35 @@ void* DefaultAllocator::Alloc(size_t size)
 void* DefaultAllocator::AllocDebug(size_t size, const char* file, unsigned line)
 {
     void* p;
+
+#ifdef OVR_USE_JEMALLOC
+    OVR_UNUSED2(file, line);
+
+    p = Alloc(size);
+#else // OVR_USE_JEMALLOC
+
 #if defined(OVR_CC_MSVC) && defined(_CRTDBG_MAP_ALLOC)
     p = _malloc_dbg(size, _NORMAL_BLOCK, file, line);
 #else
     OVR_UNUSED2(file, line); // should be here for debugopt config
     p = malloc(size);
 #endif
+
+#endif // OVR_USE_JEMALLOC
+
     trackAlloc(p, size);
     return p;
 }
 
 void* DefaultAllocator::Realloc(void* p, size_t newSize)
 {
+    OVR_ALLOC_BENCHMARK_START();
+#ifdef OVR_USE_JEMALLOC
+    void* newP = je_realloc(p, newSize);
+#else // OVR_USE_JEMALLOC
     void* newP = realloc(p, newSize);
+#endif // OVR_USE_JEMALLOC
+    OVR_ALLOC_BENCHMARK_END();
 
     // This used to more efficiently check if (newp != p) but static analyzers were erroneously flagging this.
     if (newP) // Need to check newP because realloc doesn't free p unless it returns a valid newP.
@@ -192,7 +341,13 @@ void* DefaultAllocator::Realloc(void* p, size_t newSize)
 void DefaultAllocator::Free(void *p)
 {
     untrackAlloc(p);
-    return free(p);
+    OVR_ALLOC_BENCHMARK_START();
+#ifdef OVR_USE_JEMALLOC
+    je_free(p);
+#else // OVR_USE_JEMALLOC
+    free(p);
+#endif // OVR_USE_JEMALLOC
+    OVR_ALLOC_BENCHMARK_END();
 }
 
 
@@ -303,7 +458,11 @@ void Allocator::trackAlloc(void* p, size_t size)
     if (!p || !IsLeakTracking)
         return;
 
+#ifdef OVR_USE_JEMALLOC
+    TrackedAlloc* tracked = (TrackedAlloc*)je_malloc(sizeof(TrackedAlloc));
+#else // OVR_USE_JEMALLOC
     TrackedAlloc* tracked = (TrackedAlloc*)malloc(sizeof(TrackedAlloc));
+#endif // OVR_USE_JEMALLOC
     tracked->pAlloc = p;
     tracked->FrameCount = (uint32_t)Symbols.GetBacktrace(tracked->Callstack, OVR_ARRAY_COUNT(tracked->Callstack), 2);
     tracked->Size = (uint32_t)size;
@@ -314,7 +473,11 @@ void Allocator::trackAlloc(void* p, size_t size)
     Lock::Locker locker(&TrackLock);
     if (!IsLeakTracking)
     {
+#ifdef OVR_USE_JEMALLOC
+        je_free(tracked);
+#else // OVR_USE_JEMALLOC
         free(tracked);
+#endif // OVR_USE_JEMALLOC
         return;
     }
 
@@ -356,7 +519,11 @@ void Allocator::untrackAlloc(void* p)
             {
                 AllocHashMap[key] = t->pNext;
             }
+#ifdef OVR_USE_JEMALLOC
+            je_free(t);
+#else // OVR_USE_JEMALLOC
             free(t);
+#endif // OVR_USE_JEMALLOC
 
             break;
         }
@@ -380,7 +547,8 @@ int Allocator::DumpMemory()
     if (lock) 
         lock->DoLock();
 
-    int leakCount = 0;
+    int measuredLeakCount = 0;
+    int reportedLeakCount = 0;      // = realLeakCount minus leaks we ignore (e.g. C++ runtime concurrency leaks).
     const size_t leakReportBufferSize = 8192;
     char* leakReportBuffer = nullptr;
 
@@ -388,55 +556,71 @@ int Allocator::DumpMemory()
     {
         for (TrackedAlloc* t = AllocHashMap[i]; t; t = t->pNext)
         {
+            measuredLeakCount++;
+
             if (!leakReportBuffer) // Lazy allocate this, as it wouldn't be needed unless we had a leak, which we aim to be an unusual case.
             {
                 leakReportBuffer = static_cast<char*>(SafeMMapAlloc(leakReportBufferSize));
                 if (!leakReportBuffer)
                     break;
             }
-            
+
             char line[2048];
-            OVR_snprintf(line, OVR_ARRAY_COUNT(line), "[Leak] ** Detected leaked allocation at %p (size = %u) (%d frames)\n", t->pAlloc, (unsigned)t->Size, (unsigned)t->FrameCount);
+            OVR_snprintf(line, OVR_ARRAY_COUNT(line), "\n[Leak] ** Detected leaked allocation at %p (size = %u) (%d frames)\n", t->pAlloc, (unsigned)t->Size, (unsigned)t->FrameCount);
             OVR_strlcat(leakReportBuffer, line, leakReportBufferSize);
 
-            for (size_t j = 0; j < t->FrameCount; ++j)
+            if (t->FrameCount == 0)
             {
-                SymbolInfo symbolInfo;
-
-                if (symbolLookupAvailable && Symbols.LookupSymbol((uint64_t)t->Callstack[j], symbolInfo) && (symbolInfo.filePath[0] || symbolInfo.function[0]))
-                {
-                    if (symbolInfo.filePath[0])
-                        OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%s(%d): %s\n", symbolInfo.filePath, symbolInfo.fileLineNumber, symbolInfo.function[0] ? symbolInfo.function : "(unknown function)");
-                    else
-                        OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (unknown source file): %s\n", t->Callstack[j], symbolInfo.function);
-                }
-                else
-                {
-                    OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (symbols unavailable)\n", t->Callstack[j]);
-                }
-
+                OVR_snprintf(line, OVR_ARRAY_COUNT(line), "(backtrace unavailable)\n");
                 OVR_strlcat(leakReportBuffer, line, leakReportBufferSize);
             }
-
-            // There are some leaks that aren't real because they are allocated by the Standard Library at runtime but 
-            // aren't freed until shutdown. We don't want to report those, and so we filter them out here.
-            const char* ignoredPhrases[] = { "Concurrency::details" /*add any additional strings here*/ };
-
-            for(size_t j = 0; j < OVR_ARRAY_COUNT(ignoredPhrases); ++j)
+            else
             {
-                if (strstr(leakReportBuffer, ignoredPhrases[j])) // If we should ignore this leak...
+                for (size_t j = 0; j < t->FrameCount; ++j)
                 {
-                    leakReportBuffer[0] = '\0';
-                } 
+                    SymbolInfo symbolInfo;
+
+                    if (symbolLookupAvailable && Symbols.LookupSymbol((uint64_t)t->Callstack[j], symbolInfo) && (symbolInfo.filePath[0] || symbolInfo.function[0]))
+                    {
+                        if (symbolInfo.filePath[0])
+                            OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%s(%d): %s\n", symbolInfo.filePath, symbolInfo.fileLineNumber, symbolInfo.function[0] ? symbolInfo.function : "(unknown function)");
+                        else
+                            OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (unknown source file): %s\n", t->Callstack[j], symbolInfo.function);
+                    }
+                    else
+                    {
+                        OVR_snprintf(line, OVR_ARRAY_COUNT(line), "%p (symbols unavailable)\n", t->Callstack[j]);
+                    }
+
+                    OVR_strlcat(leakReportBuffer, line, leakReportBufferSize);
+                }
+
+                // There are some leaks that aren't real because they are allocated by the Standard Library at runtime but 
+                // aren't freed until shutdown. We don't want to report those, and so we filter them out here.
+                const char* ignoredPhrases[] = { "Concurrency::details" /*add any additional strings here*/ };
+
+                for(size_t j = 0; j < OVR_ARRAY_COUNT(ignoredPhrases); ++j)
+                {
+                    if (strstr(leakReportBuffer, ignoredPhrases[j])) // If we should ignore this leak...
+                    {
+                        leakReportBuffer[0] = '\0';
+                    } 
+                }
             }
-            
+
             if (leakReportBuffer[0]) // If we are to report this as a bonafide leak...
             {
-                ++leakCount;
-                LogText("%s\n", leakReportBuffer);                
+                ++reportedLeakCount;
+
+                // We cannot use normal logging system here because it will allocate more memory!
+                ::OutputDebugStringA(leakReportBuffer);
             }
         }
     }
+
+    char summaryBuffer[128];
+    OVR_snprintf(summaryBuffer, OVR_ARRAY_COUNT(summaryBuffer), "Measured leak count: %d, Reported leak count: %d\n", measuredLeakCount, reportedLeakCount);
+    ::OutputDebugStringA(summaryBuffer);
 
     if (leakReportBuffer)
     {
@@ -450,7 +634,7 @@ int Allocator::DumpMemory()
     if(symbolLookupAvailable)
         SymbolLookup::Shutdown();
 
-    return leakCount;
+    return reportedLeakCount;
 }
 
 
@@ -626,7 +810,11 @@ void* DebugPageAllocator::Alloc(size_t size)
     #if defined(_WIN32)
         return AllocAligned(size, DefaultAlignment);
     #else
-        void* p = malloc(size);
+        #ifdef OVR_USE_JEMALLOC
+            void* p = je_malloc(size);
+        #else // OVR_USE_JEMALLOC
+            void* p = malloc(size);
+        #endif // OVR_USE_JEMALLOC
         trackAlloc(p, size);
         return p;
     #endif

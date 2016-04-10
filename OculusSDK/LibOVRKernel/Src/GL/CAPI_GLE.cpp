@@ -1,6 +1,6 @@
 /************************************************************************************
 
-Filename    :   Render_GLE.cpp
+Filename    :   CAPI_GLE.cpp
 Content     :   OpenGL Extensions support. Implements a stripped down glew-like 
                 interface with some additional functionality.
 Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
@@ -20,15 +20,13 @@ limitations under the License.
 ************************************************************************************/
 
 #include "CAPI_GLE.h"
-#include "Kernel/OVR_Log.h"
 #if defined(OVR_OS_WIN32)
     #include "Kernel/OVR_Win32_IncludeWindows.h"
 #endif // OVR_OS_WIN32
 #include <string.h>
-
-#ifdef OVR_BUILD_DEBUG
-    #include "Kernel/OVR_String.h"
-#endif // OVR_BUILD_DEBUG
+#include <stdio.h>
+#include <string>
+#include <assert.h>
 
 #if defined(_WIN32)
     #pragma comment(lib, "opengl32.lib")
@@ -39,6 +37,9 @@ limitations under the License.
     #include <dlfcn.h>
 #endif
 
+// To do: redirect these log statements.
+#define OVR_DEBUG_LOG(x)
+#define LogText(x) 
 
 
 //namespace OVR
@@ -196,7 +197,7 @@ limitations under the License.
         int fields = 0, major = 0, minor = 0;
         bool isGLES = false;
 
-        OVR_ASSERT(version);
+        assert(version);
         if (version)
         {
             OVR_DEBUG_LOG(("GL_VERSION: %s", (const char*)version));
@@ -873,9 +874,7 @@ limitations under the License.
                
                 if(err == 0)
                 {
-                    #ifdef OVR_BUILD_DEBUG
-                    OVR::StringBuffer extensionsStr;
-                    #endif
+                    std::string sExtensions;
  
                     for(GLint e = 0; e != extensionCount; ++e) // For each extension supported...
                     {
@@ -883,9 +882,8 @@ limitations under the License.
  
                         if(extension) // glGetStringi returns NULL upon error.
                         {
-                            #ifdef OVR_BUILD_DEBUG
-                                extensionsStr.AppendFormat(" %s", extension);
-                            #endif
+                            sExtensions += " ";
+                            sExtensions += extension;
  
                             for(size_t i = 0; i < OVR_ARRAY_COUNT(vspArray); i++) // For each extension we are interested in...
                             {
@@ -899,7 +897,7 @@ limitations under the License.
                             break;
                     }
  
-                    OVR_DEBUG_LOG(("GL_EXTENSIONS: %s", extensionsStr.ToCStr()));
+                    OVR_DEBUG_LOG(("GL_EXTENSIONS: %s", sExtensions.c_str()));
                 }
             }
             // Else we have a problem: no means to read the extensions was successful.

@@ -68,6 +68,8 @@ namespace OVR {
     void              FreeThreadHandle(OVR::ThreadHandle threadHandle);                 // Frees the handle returned by ConvertThreadSysIdToThreadHandle.
     OVR::ThreadSysId  GetCurrentThreadSysId();
 
+    void GetOSVersionName(char* versionName, size_t versionNameCapacity);
+
     // CPUContext
     #if defined(OVR_OS_MS)
         typedef CONTEXT CPUContext; 
@@ -426,6 +428,22 @@ namespace OVR {
         // Allws you to add an arbitrary description of the current application, which will be added to exception reports.
         void SetAppDescription(const char* appDescription);
 
+        // Specifies how much info the minidump has, but also how large it gets.
+        enum MinidumpInfoLevel
+        {
+            kMILNone,       // Don't generate a .mdmp file.
+            kMILSmall,      // Will result in a .mdmp file that's about 10-30 KiB
+            kMILMedium,     // Will result in a .mdmp file that's about 5-15 MiB
+            kMILLarge       // Will result in a .mdmp file that's about 50-150 MiB.
+        };
+
+
+        void SetMinidumpInfoLevel(MinidumpInfoLevel level)
+            { minidumpInfoLevel = level; }
+
+        MinidumpInfoLevel GetMinidumpInfoLevel() const
+            { return minidumpInfoLevel; }
+
         // If the report path has a "%s" in its name, then assume the path is a sprintf format and write it 
         // with the %s specified as a date/time string.
         // The report path can be "default" to signify that you want to use the default user location.
@@ -456,6 +474,12 @@ namespace OVR {
         // Guarantees the presence of the directory upon returning true.
         static size_t GetCrashDumpDirectory(char* directoryPath, size_t directoryPathCapacity);
 
+
+        // Retrieves a directory path for a specific organization and application.
+        // Returns the required strlen of the path.
+        // Guarantees the presence of the directory upon returning true.
+        static void GetCrashDumpDirectoryFromNames(char* path, const char* organizationName, const char* ApplicationName);
+
         // Given an exception report at a given file path, returns a string suitable for displaying in a message
         // box or similar user interface during the handling of an exception. The returned string must be passed
         // to FreeMessageBoxText when complete.
@@ -472,9 +496,11 @@ namespace OVR {
         void writeLogLine(const char* buffer, int length);
 
         void WriteExceptionDescription();
-        void WriteReport();
+        void WriteReport(const char* reportType);
         void WriteThreadCallstack(ThreadHandle threadHandle, ThreadSysId threadSysId, const char* additionalInfo);
         void WriteMiniDump();
+
+protected:
         // Runtime constants
         bool                enabled;
         OVR::AtomicInt<int> pauseCount;                  // 0 means unpaused. 1+ means paused.
@@ -485,7 +511,7 @@ namespace OVR {
         String              appDescription;
         String              codeBasePathArray[6];        // 6 is arbitrary.
         char                reportFilePath[OVR_MAX_PATH];// May be an encoded path, in that it has "%s" in it or is named "default". See reporFiletPathActual for the runtime actual report path.
-        int                 miniDumpFlags;
+        MinidumpInfoLevel   minidumpInfoLevel;
         char                miniDumpFilePath[OVR_MAX_PATH];
         FILE*               LogFile;                        // Can/should we use OVR Files for this?
         char                scratchBuffer[4096];

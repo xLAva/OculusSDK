@@ -35,6 +35,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_Library.h" />
+    <ClInclude Include="..\..\..\..\Logging\src\internal\Logging_Tools.h" />
+    <ClInclude Include="..\..\..\..\Logging\src\Logging_OutputPlugins.h" />
     <ClInclude Include="..\..\..\Src\GL\CAPI_GLE.h" />
     <ClInclude Include="..\..\..\Src\GL\CAPI_GLE_GL.h" />
     <ClInclude Include="..\..\..\Src\Kernel\OVR_Alg.h" />
@@ -81,6 +84,9 @@
     <ClInclude Include="..\..\..\Src\Util\Util_Watchdog.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\Logging\src\internal\Logging_Tools.cpp" />
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_Library.cpp" />
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_OutputPlugins.cpp" />
     <ClCompile Include="..\..\..\Src\GL\CAPI_GLE.cpp" />
     <ClCompile Include="..\..\..\Src\Kernel\OVR_Alg.cpp" />
     <ClCompile Include="..\..\..\Src\Kernel\OVR_Allocator.cpp" />

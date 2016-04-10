@@ -10,6 +10,9 @@
     <Filter Include="Util">
       <UniqueIdentifier>{adfe2ad5-b3f5-4afd-98da-b3ca76652ced}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Logging">
+      <UniqueIdentifier>{272c0d1f-30ce-45aa-9983-0a5aacb9ebb4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Src\Kernel\OVR_Delegates.h">
@@ -144,6 +147,15 @@
     <ClInclude Include="..\..\..\Src\Kernel\OVR_CallbacksInternal.h">
       <Filter>Kernel</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\src\Logging_OutputPlugins.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\src\internal\Logging_Tools.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_Library.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Src\Kernel\OVR_File.cpp">
@@ -241,6 +253,15 @@
     </ClCompile>
     <ClCompile Include="..\..\..\Src\Kernel\OVR_Callbacks.cpp">
       <Filter>Kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_Library.cpp">
+      <Filter>Logging</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_OutputPlugins.cpp">
+      <Filter>Logging</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\internal\Logging_Tools.cpp">
+      <Filter>Logging</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

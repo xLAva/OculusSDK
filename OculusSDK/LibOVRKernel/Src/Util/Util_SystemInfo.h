@@ -5,16 +5,16 @@ Content     :   Various operations to get information about the system
 Created     :   September 26, 2014
 Author      :   Kevin Jenkins
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License");
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
 which is provided at the time of installation or download, or which
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2
+http://www.oculusvr.com/licenses/LICENSE-3.3
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,24 +39,43 @@ String OSVersionAsString();
 uint64_t GetGuidInt();
 String GetGuidString();
 const char * GetProcessInfo();
-String GetDisplayDriverVersion();
 String GetCameraDriverVersion();
 void GetGraphicsCardList(OVR::Array< OVR::String > &gpus);
 String GetProcessorInfo();
 
+enum WindowsVersion
+{
+    Windows7_SP1 = 0,
+    Windows8,
+    Windows8_1,
+    Windows10,
+    Windows10_TH2
+};
+
+bool IsAtLeastWindowsVersion(WindowsVersion version);
+bool IsAtMostWindowsVersion(WindowsVersion version);
+
 //Retrives the root of the Oculus install directory
 bool GetOVRRuntimePath(OVR::String &runtimePath);
 
-//Retrives the root of the Oculus install directory and from there finds the firmware bundle relative.
-//On Windows this is defined as a registry key. On Mac and Linux this is set as an environment variable.
-//For Development builds with no key set, we at 10 directories for (DIR)/Firmware/FirmwareBundle.json .
-//Iterating DIR as "..//" * maxSearchDirs concatenated.
-bool GetFirmwarePathFromService(OVR::String &runtimePath, int numSearchDirs = 10);
+// This function searches for likely locations of the firmware.zip file
+// returns true if the file is found
+bool GetFirmwarePath(std::wstring* outPath);
+
+// This function searches for likely locations of the RiftFirmLoad2.exe file
+// returns true if the file is found
+bool GetRFL2Path(std::wstring* outPath);
+
+// Checks if the computer is currently locked
+bool CheckIsComputerLocked();
 
 #ifdef OVR_OS_MS
 
-//Retrives the root of the Oculus install directory
-bool GetOVRRuntimePathW(wchar_t out[MAX_PATH]);
+// Retrives the root of the Oculus install directory
+// The returned string is a directory path and does not have a trailing path separator.
+// Example return value as of runtime 1.2 (February 2016): L"C:\Program Files (x86)\Oculus\Support\oculus-runtime"
+// Upon a false return value, the returned runtimePath contents are not defined.
+bool GetOVRRuntimePathW(wchar_t runtimePath[MAX_PATH]);
 
 // Returns true if a string-type registry key of the given name is present, else sets out to empty and returns false.
 // The output string will always be 0-terminated, but may be empty.
@@ -68,6 +87,16 @@ bool GetRegistryStringW(const wchar_t* pSubKey, const wchar_t* stringName, wchar
 // If wow64value is true then KEY_WOW64_32KEY is used in the registry lookup.
 // If currentUser is true then HKEY_CURRENT_USER root is used instead of HKEY_LOCAL_MACHINE
 bool GetRegistryDwordW(const wchar_t* pSubKey, const wchar_t* stringName, DWORD& out, bool wow64value = false, bool currentUser = false);
+
+// Returns true if a string-type registry key of the given name is present and can be read as a float, else sets out to 0 and returns false.
+// If wow64value is true then KEY_WOW64_32KEY is used in the registry lookup.
+// If currentUser is true then HKEY_CURRENT_USER root is used instead of HKEY_LOCAL_MACHINE
+bool GetRegistryFloatW(const wchar_t* pSubKey, const wchar_t* stringName, float& out, bool wow64value = false, bool currentUser = false);
+
+// Returns true if a string-type registry key of the given name is present and can be read as a double, else sets out to 0 and returns false.
+// If wow64value is true then KEY_WOW64_32KEY is used in the registry lookup.
+// If currentUser is true then HKEY_CURRENT_USER root is used instead of HKEY_LOCAL_MACHINE
+bool GetRegistryDoubleW(const wchar_t* pSubKey, const wchar_t* stringName, double& out, bool wow64value = false, bool currentUser = false);
 
 // Returns true if a BINARY-type registry key of the given name is present, else sets out to 0 and returns false.
 // Size must be set to max size of out buffer on way in. Will be set to size actually read into the buffer on way out.
@@ -85,6 +114,11 @@ bool GetRegistryBoolW(const wchar_t* pSubKey, const wchar_t* stringName, bool de
 // If wow64value is true then KEY_WOW64_32KEY is used in the registry write.
 // If currentUser is true then HKEY_CURRENT_USER root is used instead of HKEY_LOCAL_MACHINE
 bool SetRegistryBinaryW(const wchar_t* pSubKey, const wchar_t* stringName, const LPBYTE value, DWORD size, bool wow64value = false, bool currentUser = false);
+
+// Returns true if the DWORD value could be successfully written to the registry.
+// If wow64value is true then KEY_WOW64_32KEY is used in the registry write.
+// If currentUser is true then HKEY_CURRENT_USER root is used instead of HKEY_LOCAL_MACHINE
+bool SetRegistryDwordW(const wchar_t* pSubKey, const wchar_t* stringName, DWORD newValue, bool wow64value = false, bool currentUser = false);
 
 // Returns true if the value could be successfully deleted from the registry.
 // If wow64value is true then KEY_WOW64_32KEY is used.

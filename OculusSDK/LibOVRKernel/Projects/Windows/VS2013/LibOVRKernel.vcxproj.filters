@@ -16,6 +16,12 @@
     <Filter Include="Util\Shaders">
       <UniqueIdentifier>{fc456049-35b9-44d7-b53d-a761c67053e8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Logging">
+      <UniqueIdentifier>{8ed17452-793f-427f-b94d-0332c6154f89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="props">
+      <UniqueIdentifier>{c902941f-47c8-46e0-bfc3-f60b0c24cea1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Src\Kernel\OVR_Delegates.h">
@@ -162,6 +168,15 @@
     <ClInclude Include="..\..\..\Src\Util\Util_GL_Blitter.h">
       <Filter>Util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_Library.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_OutputPlugins.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_Tools.h">
+      <Filter>Logging</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Src\Kernel\OVR_File.cpp">
@@ -266,6 +281,15 @@
     <ClCompile Include="..\..\..\Src\Util\Util_GL_Blitter.cpp">
       <Filter>Util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_Library.cpp">
+      <Filter>Logging</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_OutputPlugins.cpp">
+      <Filter>Logging</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Logging\src\internal\Logging_Tools.cpp">
+      <Filter>Logging</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\Src\Tracing\README.md">
@@ -276,6 +300,9 @@
     </None>
     <None Include="..\..\..\Src\Kernel\OVR_NewOverride.inl">
       <Filter>Kernel</Filter>
+    </None>
+    <None Include="..\OVRRootPath.props">
+      <Filter>props</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

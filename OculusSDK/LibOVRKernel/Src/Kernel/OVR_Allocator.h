@@ -1,21 +1,20 @@
 /************************************************************************************
 
-PublicHeader:   OVR_Kernel.h
 Filename    :   OVR_Allocator.h
 Content     :   Installable memory allocator
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -74,28 +73,69 @@ limitations under the License.
 
 //------------------------------------------------------------------------
 // ***** Macros to redefine class new/delete operators
-
+//
 // Types specifically declared to allow disambiguation of address in
-// class member operator new.
+// class member operator new. This is intended to be used with a
+// macro like OVR_CHECK_DELETE(class_name, p) in the example below.
+//
+// Example usage:
+//    class Widget
+//    {
+//    public:
+//        Widget();
+//
+//        #ifdef OVR_BUILD_DEBUG
+//            #define OVR_MEMORY_CHECK_DELETE(class_name, p)   \
+//                do { if (p) checkInvalidDelete((class_name*)p); } while(0)
+//        #else
+//            #define OVR_MEMORY_CHECK_DELETE(class_name, p)
+//        #endif
+//
+//        OVR_MEMORY_REDEFINE_NEW_IMPL(Widget, OVR_MEMORY_CHECK_DELETE)
+//    };
+//
 
-#define OVR_MEMORY_REDEFINE_NEW_IMPL(class_name, check_delete)                           \
-    void*   operator new(size_t sz)                                                      \
-    { void* p = OVR_ALLOC_DEBUG(sz, __FILE__, __LINE__); return p; }                     \
-    void*   operator new(size_t sz, const char* file, int line)                          \
-    { OVR_UNUSED2(file, line); void* p = OVR_ALLOC_DEBUG(sz, file, line); return p; }    \
-    void    operator delete(void* p)                                                     \
-    { check_delete(class_name, p); OVR_FREE(p); }                                        \
-    void    operator delete(void* p, const char*, int)                                   \
-    { check_delete(class_name, p); OVR_FREE(p); }
+#define OVR_MEMORY_REDEFINE_NEW_IMPL(class_name, check_delete)  \
+    void* operator new(size_t sz)                               \
+    {                                                           \
+        void* p = OVR_ALLOC_DEBUG(sz, __FILE__, __LINE__);      \
+        if (!p)                                                 \
+            throw OVR::bad_alloc();                             \
+        return p;                                               \
+    }                                                           \
+                                                                \
+    void* operator new(size_t sz, const char* file, int line)   \
+    {                                                           \
+        OVR_UNUSED2(file, line);                                \
+        void* p = OVR_ALLOC_DEBUG(sz, file, line);              \
+        if (!p)                                                 \
+            throw OVR::bad_alloc();                             \
+        return p;                                               \
+    }                                                           \
+                                                                \
+    void operator delete(void* p)                               \
+    {                                                           \
+        if (p)                                                  \
+        {                                                       \
+            check_delete(class_name, p);                        \
+            OVR_FREE(p);                                        \
+        }                                                       \
+    }                                                           \
+                                                                \
+    void operator delete(void* p, const char*, int)             \
+    {                                                           \
+        if (p)                                                  \
+        {                                                       \
+            check_delete(class_name, p);                        \
+            OVR_FREE(p);                                        \
+        }                                                       \
+    }
 
-#define OVR_MEMORY_DEFINE_PLACEMENT_NEW                                                  \
-    void*   operator new        (size_t n, void* ptr)   { OVR_UNUSED(n); return ptr; }   \
-    void    operator delete     (void* ptr, void* ptr2) { OVR_UNUSED2(ptr, ptr2); }
 
-
+// Used by OVR_MEMORY_REDEFINE_NEW
 #define OVR_MEMORY_CHECK_DELETE_NONE(class_name, p)
 
-// Redefined all delete/new operators in a class without custom memory initialization
+// Redefine all delete/new operators in a class without custom memory initialization.
 #define OVR_MEMORY_REDEFINE_NEW(class_name) \
     OVR_MEMORY_REDEFINE_NEW_IMPL(class_name, OVR_MEMORY_CHECK_DELETE_NONE)
 

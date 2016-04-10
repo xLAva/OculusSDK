@@ -5,10 +5,9 @@ REM run this script from an Admin shell to set up ETW tracing
 set SCRIPTDIR=%~dp0
 
 REM set SDK_MANIFEST_PATH to the SDK install path (e.g. C:\Program Files (x86)\Oculus)
-for /f "delims=" %%a in ('reg query "HKLM\System\CurrentControlSet\Services\OVRService" -v "ImagePath"') do set SDK_MANIFEST_PATH=%%a
-set SDK_MANIFEST_PATH=%SDK_MANIFEST_PATH:    ImagePath    REG_EXPAND_SZ    =%
-set SDK_MANIFEST_PATH=%SDK_MANIFEST_PATH:"=%
-set SDK_MANIFEST_PATH=%SDK_MANIFEST_PATH:\Service\OVRServiceLauncher.exe=%\Tools\ETW
+for /f "delims=" %%a in ('reg query "HKLM\SOFTWARE\Wow6432Node\Oculus VR, LLC\Oculus" -v "Base"') do set SDK_INSTALL_PATH=%%a
+set SDK_INSTALL_PATH=%SDK_INSTALL_PATH:    Base    REG_SZ    =%
+set SDK_MANIFEST_PATH=%SDK_INSTALL_PATH%\oculus-tools\etw
 
 REM Add USERS Read & Execute privileges to the folder
 icacls . /grant BUILTIN\Users:(OI)(CI)(RX) >nul
@@ -19,16 +18,12 @@ echo Failed to set cacls, installation may fail
 :CaclsOk
 
 set OSTYPE=x64
-set RIFTENABLER_SYS=%windir%\System32\drivers\RiftEnabler.sys
 set OCUSBVID_SYS=%windir%\System32\drivers\OCUSBVID.sys
-set OVRDISPLAYRT_DLL=%windir%\System32\OVRDisplayRT64.dll
 if "%PROCESSOR_ARCHITECTURE%"=="AMD64" goto GotOSTYPE
 if "%PROCESSOR_ARCHITEW6432%"=="AMD64" goto GotOSTYPE
 set OSTYPE=x86
 REM XXX is this right?
-set RIFTENABLER_SYS=%windir%\System32\drivers\RiftEnabler.sys
 set OCUSBVID_SYS=%windir%\System32\drivers\OCUSBVID.sys
-set OVRDISPLAYRT_DLL=%windir%\System32\OVRDisplayRT32.dll
 
 :GotOSTYPE
 
@@ -46,36 +41,7 @@ echo ************************
 
 :SkipRegCheck
 
-set RIFTDISPLAYDRIVER_DIR=%SCRIPTDIR%..\..\..\RiftDisplayDriver
 set RIFTCAMERADRIVER_DIR=%SCRIPTDIR%..\..\..\RiftPTDriver
-
-set KERNEL_EVENTS_MAN=%SDK_MANIFEST_PATH%\OVRKernelEvents.man
-if exist "%RIFTDISPLAYDRIVER_DIR%\RiftEnabler\OVRKernelEvents.man" set KERNEL_EVENTS_MAN=%RIFTDISPLAYDRIVER_DIR%\RiftEnabler\OVRKernelEvents.man
-if exist "%SCRIPTDIR%OVRKernelEvents.man" set KERNEL_EVENTS_MAN=%SCRIPTDIR%OVRKernelEvents.man
-
-echo Installing %RIFTENABLER_SYS% manifest...
-REM uninstall any existing manifest first
-wevtutil.exe uninstall-manifest "%KERNEL_EVENTS_MAN%"
-if %errorlevel% neq 0 echo WARNING: This step failed.
-wevtutil.exe install-manifest "%KERNEL_EVENTS_MAN%" /rf:"%RIFTENABLER_SYS%" /mf:"%RIFTENABLER_SYS%"
-REM make sure it worked
-wevtutil get-publisher OVR-Kernel > nul
-if %errorlevel% neq 0 echo WARNING: This step failed.
-echo Installed %KERNEL_EVENTS_MAN%
-
-set RFILTER_EVENTS_MAN=%SDK_MANIFEST_PATH%\RTFilterEvents.man
-if exist "%RIFTDISPLAYDRIVER_DIR%\rt_filter\RTFilterEvents.man" set RFILTER_EVENTS_MAN=%RIFTDISPLAYDRIVER_DIR%\rt_filter\RTFilterEvents.man
-if exist "%SCRIPTDIR%RTFilterEvents.man" set RFILTER_EVENTS_MAN=%SCRIPTDIR%RTFilterEvents.man
-
-echo Installing %OVRDISPLAYRT_DLL% manifest...
-REM uninstall any existing manifest first
-wevtutil.exe uninstall-manifest "%RFILTER_EVENTS_MAN%"
-if %errorlevel% neq 0 echo WARNING: This step failed.
-wevtutil.exe install-manifest "%RFILTER_EVENTS_MAN%" /rf:"%OVRDISPLAYRT_DLL%" /mf:"%OVRDISPLAYRT_DLL%"
-REM make sure it worked
-wevtutil get-publisher OVR-RTFilter > nul
-if %errorlevel% neq 0 echo WARNING: This step failed.
-echo Installed %RFILTER_EVENTS_MAN%
 
 set USBVID_EVENTS_MAN=%SDK_MANIFEST_PATH%\OVRUSBVidEvents.man
 if exist "%RIFTCAMERADRIVER_DIR%\OCUSBVID\OVRUSBVidEvents.man" set USBVID_EVENTS_MAN=%RIFTCAMERADRIVER_DIR%\OCUSBVID\OVRUSBVidEvents.man
@@ -91,17 +57,15 @@ wevtutil get-publisher OVR-USBVid > nul
 if %errorlevel% neq 0 echo WARNING: This step failed.
 echo Installed %USBVID_EVENTS_MAN%
 
-REM XXX eventually add OVR-Compositor here...
-
 set LIBOVR_EVENTS_MAN=%SDK_MANIFEST_PATH%\LibOVREvents.man
 if exist "%SCRIPTDIR%LibOVREvents.man" set LIBOVR_EVENTS_MAN=%SCRIPTDIR%LibOVREvents.man
 
 REM get rid of stale dll's
 del /f /q "%SCRIPTDIR%LibOVRRT*.dll"
-set LIBOVR_PATTERN=LibOVRRT*_0_8.dll
+set LIBOVR_PATTERN=LibOVRRT*_1.dll
 echo Looking for %LIBOVR_PATTERN% dll's
 REM this nightmare command copies the newest version of %LIBOVR_PATTERN% into the current directory without prompting...
-forfiles /p:"%SystemRoot%\System32" /m:%LIBOVR_PATTERN% /c "cmd /c xcopy /y /f /d @path \"%SCRIPTDIR%.\" >nul" >nul 2>nul
+forfiles /p:"%SDK_INSTALL_PATH%Support\oculus-runtime" /m:%LIBOVR_PATTERN% /c "cmd /c xcopy /y /f /d @path \"%SCRIPTDIR%.\" >nul" >nul 2>nul
 if not exist "%SCRIPTDIR%..\..\..\LibOVR\Lib\Windows" goto NoLibOVRSource
 forfiles /s /p:"%SCRIPTDIR%..\..\..\LibOVR\Lib\Windows" /m:%LIBOVR_PATTERN% /c "cmd /c xcopy /y /f /d @path \"%SCRIPTDIR%.\" >nul" >nul 2>nul
 :NoLibOVRSource

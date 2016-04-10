@@ -1,21 +1,20 @@
 /************************************************************************************
 
-PublicHeader:   OVR_Kernel.h
 Filename    :   OVR_UTF8Util.h
 Content     :   UTF8 Unicode character encoding/decoding support
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +30,6 @@ limitations under the License.
 #include "OVR_Types.h"
 
 namespace OVR { namespace UTF8Util {
-
 
 
 // *** wchar_t / UTF8 Unicode string conversion
@@ -87,10 +85,14 @@ intptr_t GetLength(const char* putf8str, intptr_t length = -1);
 uint32_t GetCharAt(intptr_t index, const char* putf8str, intptr_t length = -1);
 
 // Converts UTF8 character index into byte offset.
-// -1 is returned if index was out of bounds.
-intptr_t GetByteIndex(intptr_t index, const char* putf8str, intptr_t length = -1);
+// A valid offset is always returned, either to the start of the string if index < 0,
+// or to the terminating null character/end of string if the index'th character is past byteLength.
+// Characters which straddle byteLength are truncated.
+intptr_t GetByteIndex(intptr_t index, const char* putf8str, intptr_t byteLength = -1);
 
-
+// Converts UTF8 character index into byte offset.
+// -1 is returned if index was out of bounds or if the final character straddles byteLength.
+intptr_t GetByteIndexChecked(intptr_t index, const char* putf8str, intptr_t byteLength = -1);
 
 // *** Individual character Encoding/Decoding.
 
@@ -119,25 +121,6 @@ inline uint32_t DecodeNextChar(const char** putf8Buffer)
         (*putf8Buffer)--;
     return ch;
 }
-
-
-
-
-// *** Deprecated
-
-// Determines the number of bytes necessary to encode a string.
-// Does not count the terminating 0 (null) character.
-intptr_t GetEncodeStringSize(const wchar_t* pchar, intptr_t length = -1);
-
-// Encodes a unicode (UCS-2 only) string into a buffer. The size of buffer must be at
-// least GetEncodeStringSize() + 1.
-void     EncodeString(char *pbuff, const wchar_t* pchar, intptr_t length = -1);
-
-// Decode UTF8 into a wchar_t buffer. Must have GetLength()+1 characters available.
-// Characters over 0xFFFF are replaced with 0xFFFD.
-// Returns the length of resulting string (number of characters)
-size_t   DecodeString(wchar_t *pbuff, const char* putf8str, intptr_t bytesLen = -1);
-
 
 }} // OVR::UTF8Util
 

@@ -6,16 +6,16 @@ Content     :   Performance tracing
 Created     :   December 4, 2014
 Author      :   Ed Hutchins
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License");
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
 which is provided at the time of installation or download, or which
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2
+http://www.oculusvr.com/licenses/LICENSE-3.3
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -86,12 +86,13 @@ limitations under the License.
     #define TraceDistortionWaitGPU(id, frameIndex) EventWriteDistortionWaitGPU((id), (frameIndex))
     #define TraceDistortionPresent(id, frameIndex) EventWriteDistortionPresent((id), (frameIndex))
     #define TraceDistortionEnd(id, frameIndex) EventWriteDistortionEnd((id), (frameIndex))
+    #define TraceDistortionEndToEndTiming(elapsedMs) EventWriteDistortionEndToEndTiming((elapsedMs))
 
     // Tracking Camera events
     #define _TraceCameraFrameData(fn,camIdx,img) \
         fn( \
             (camIdx), \
-            (img).FrameNumber, \
+            (uint32_t)(img).FrameNumber,        \
             (img).HmdFrameNumber, \
             (img).ArrivalTime, \
             (img).CaptureTime \
@@ -196,15 +197,9 @@ limitations under the License.
             &(ts).HeadPose.ThePose.Position.x, \
             &(ts).HeadPose.AngularVelocity.x, \
             &(ts).HeadPose.LinearVelocity.x, \
-            &(ts).CameraPose.Orientation.x, \
-            &(ts).CameraPose.Position.x, \
-            &(ts).RawSensorData.Accelerometer.x, \
-            &(ts).RawSensorData.Gyro.x, \
-            &(ts).RawSensorData.Magnetometer.x, \
-            (ts).RawSensorData.Temperature, \
-            (ts).RawSensorData.TimeInSeconds, \
-            (ts).StatusFlags, \
-            (ts).LastCameraFrameCounter \
+            0, \
+            0, \
+            (ts).StatusFlags \
         )
 
     #define TraceCameraBlobs(camIdx, frame) \
@@ -225,7 +220,7 @@ limitations under the License.
             } \
             EventWriteCameraBlobs( \
                 camIdx, \
-                (frame).Frame->FrameNumber, \
+                (uint32_t)(frame).Frame->FrameNumber, \
                 (frame).Frame->ArrivalTime, \
                 (frame).Frame->Width, \
                 (frame).Frame->Height, \
@@ -284,18 +279,43 @@ limitations under the License.
           LatencyTiming.ErrorTimewarp \
       )
 
-    #define TraceEndFrameAppTiming(AppTiming, DistortionGpuDuration) \
+    #define TraceEndFrameAppTiming(AppTiming, RenderCount) \
       EventWriteEndFrameAppTiming( \
           AppTiming.AppFrameIndex, \
           AppTiming.AppRenderIMUTime, \
-          AppTiming.AppScanoutStartTime, \
+          AppTiming.AppVisibleMidpointTime, \
           AppTiming.AppGpuRenderDuration, \
           AppTiming.AppBeginRenderingTime, \
           AppTiming.AppEndRenderingTime, \
           AppTiming.QueueAheadSeconds, \
-          DistortionGpuDuration \
+          RenderCount \
+      )
+    #define TraceEndFrameOrigAppTiming(AppTiming, RenderCount) \
+      EventWriteEndFrameOrigAppTiming( \
+          AppTiming.AppFrameIndex, \
+          AppTiming.AppRenderIMUTime, \
+          AppTiming.AppVisibleMidpointTime, \
+          AppTiming.AppGpuRenderDuration, \
+          AppTiming.AppBeginRenderingTime, \
+          AppTiming.AppEndRenderingTime, \
+          AppTiming.QueueAheadSeconds, \
+          RenderCount \
       )
 
+#define VirtualDisplayPacketTrace_Begin			0
+#define VirtualDisplayPacketTrace_End			1
+#define VirtualDisplayPacketTrace_Queue			2
+#define VirtualDisplayPacketTrace_QueueRelease  3
+#define VirtualDisplayPacketTrace_Result		5
+
+
+	#define TraceVirtualDisplayPacket(PacketType, Stage, SubmittingProcessID, ActiveProcessID) EventWriteVirtualDisplayPacketTrace(PacketType, Stage, SubmittingProcessID, ActiveProcessID)
+	#define TraceClientFrameMissed(FrameIndex, ProcessID) EventWriteClientFrameMissed(FrameIndex, ProcessID)
+    #define TraceCompositionBegin(ExpectedCPUStartTimeInSeconds, ActualCPUStartTimeInSeconds) EventWriteCompositionBegin(ExpectedCPUStartTimeInSeconds, ActualCPUStartTimeInSeconds)
+	#define TraceCompositionEnd() EventWriteCompositionEnd()
+    #define TraceCompositionEndSpinWait() EventWriteCompositionEndSpinWait()
+    #define TraceCompositionFlushingToGPU() EventWriteCompositionFlushingToGPU()
+    #define TraceRenderPacketProcessEvent(Stage, ProcessID) EventWriteRenderPacketProcessEvent(Stage, ProcessID)
     #define TraceHardwareInfo(data) \
       EventWriteHardwareInfo( \
           data.RequestedBits, \
@@ -314,11 +334,7 @@ limitations under the License.
           data.Persistence, \
           data.LightingOffset, \
           data.PixelSettle, \
-          data.TotalRows, \
-          data.RecordedCameraCount, \
-          data.TrackerSensorDieTemp, \
-          data.TrackerEtronTemp, \
-          data.TrackerCCMTemp)
+          data.TotalRows)
 
 #else // OVR_ENABLE_ETW_TRACING
 
@@ -333,6 +349,7 @@ limitations under the License.
     #define TraceDistortionWaitGPU(id, frameIndex) ((void)0)
     #define TraceDistortionPresent(id, frameIndex) ((void)0)
     #define TraceDistortionEnd(id, frameIndex) ((void)0)
+    #define TraceDistortionEndToEndTiming(elapsedMs) ((void)0)
     #define TraceCameraFrameReceived(cfd) ((void)0)
     #define TraceCameraBeginProcessing(camIdx, img) ((void)0)
     #define TraceCameraFrameRequest(requestNumber, frameCount, lastFrameNumber) ((void)0)
@@ -355,7 +372,14 @@ limitations under the License.
     #define TraceAppDisconnect(Pid) ((void)0)
     #define TraceAppNoOp(Pid) ((void)0)
     #define TraceLatencyTiming(LatencyTiming) ((void)0)
-    #define TraceEndFrameAppTiming(AppTiming, DistortionGpuDuration) ((void)0)
+    #define TraceEndFrameAppTiming(AppTiming, RenderCount) ((void)0)
+	#define TraceVirtualDisplayPacket(PacketType, Stage, SubmittingProcessID, ActiveProcessID) ((void)0)
+	#define TraceClientFrameMissed(FrameIndex, ProcessID) ((void)0)
+    #define TraceCompositionBegin(ExpectedCPUStartTimeInSeconds, ActualCPUStartTimeInSeconds) ((void)0)
+	#define TraceCompositionEnd() ((void)0)
+    #define TraceCompositionEndSpinWait() ((void)0)
+    #define TraceCompositionFlushingToGPU() ((void)0)
+    #define TraceRenderPacketProcessEvent(Stage, ProcessID) ((void)0)
     #define TraceHardwareInfo(data) ((void)0)
 
 #endif // OVR_ENABLE_ETW_TRACING

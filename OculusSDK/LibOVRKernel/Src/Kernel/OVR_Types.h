@@ -1,21 +1,20 @@
 /************************************************************************************
 
-PublicHeader:   OVR_Kernel.h
 Filename    :   OVR_Types.h
 Content     :   Standard library defines and simple types
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +29,21 @@ limitations under the License.
 
 #include <cstddef>
 #include "OVR_Compiler.h"
+
+#if defined(_WIN32) && defined(OVR_KILL_WINDOWS_A_FUNCTIONS)
+    #define NOMINMAX
+    #include <Windows.h>
+    #include <commctrl.h>
+    #include <DbgHelp.h>
+    #include <ShlObj.h>
+    #include <Shlwapi.h>
+    #include <Sddl.h>
+    #include <WtsApi32.h>
+    #include <SetupAPI.h>
+    #include <Cfgmgr32.h>
+    #include <Psapi.h>
+    #include "WindowsAFunctions.h"
+#endif
 
 
 // Unsupported compiler configurations
@@ -480,6 +494,27 @@ struct OVR_GUID
 
 
 // ------------------------------------------------------------------------
+// ***** OVR_CONST_FLOAT / OVR_CONST_DOUBLE
+//
+// Used for defining a const float, typically in a header file. The resulting
+// variable has external linkage and thus any other declarations of variables 
+// with the same name must be of an identical value.
+//
+// Example usage:
+//     OVR_CONST_FLOAT  kPi  = 3.14159265f;
+//     OVR_CONST_DOUBLE kOne = 1.0;
+
+#if defined(_MSC_VER)
+    #define OVR_CONST_FLOAT  extern const __declspec(selectany) float
+    #define OVR_CONST_DOUBLE extern const __declspec(selectany) double
+#else
+    #define OVR_CONST_FLOAT  __attribute__(weak) extern const float
+    #define OVR_CONST_DOUBLE __attribute__(weak) extern const double
+#endif
+
+
+
+// ------------------------------------------------------------------------
 // ***** OVR_FORCE_INLINE
 //
 // Force inline substitute - goes before function declaration
@@ -625,95 +660,107 @@ struct OVR_GUID
     // if true then no action. Has no effect in release builds.
     #if defined(__clang_analyzer__) // During static analysis, make it so the analyzer thinks that failed asserts result in program exit. Reduced false positives.
         #include <stdlib.h>
-        #define OVR_FAIL_M(message)      do { OVR_DEBUG_BREAK; exit(0); } while(0)
-        #define OVR_FAIL()               do { OVR_DEBUG_BREAK; exit(0); } while(0)
-        #define OVR_FAIL_F(...)          do { OVR_DEBUG_BREAK; exit(0); } while(0)
-        #define OVR_ASSERT_M(p, message) do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
-        #define OVR_ASSERT(p)            do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
-        #define OVR_ASSERT_F(p, ...)     do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
+        #ifndef OVR_FAIL_M
+            #define OVR_FAIL_M(message)      do { OVR_DEBUG_BREAK; exit(0); } while(0)
+        #endif
+        #ifndef OVR_FAIL
+            #define OVR_FAIL()               do { OVR_DEBUG_BREAK; exit(0); } while(0)
+        #endif
+        #ifndef OVR_ASSERT_M
+            #define OVR_ASSERT_M(p, message) do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
+        #endif
+        #ifndef OVR_ASSERT
+            #define OVR_ASSERT(p)            do { if (!(p))  { OVR_DEBUG_BREAK; exit(0); } } while(0)
+        #endif
     #else
         #include <stdlib.h>
-
-        namespace OVR{ void OVR_Fail_F(const char* format, ...); }
 
         // OVR::IsAutomationRunning() is a flag that indicates the current process is running automated tests.
         // Tests are usually running using GoogleTest or some other test harness
         //
         // Using OVR_DEBUG_BREAK will cause the test to bail out and kill the current process.
         // abort() will fail the test and let subsequent tests run.
-        #define OVR_FAIL_M(message)                                                                            \
-            {                                                                                                  \
-                intptr_t ovrAssertUserParam;                                                                   \
-                OVR::OVRAssertionHandler ovrAssertUserHandler = OVR::GetAssertionHandler(&ovrAssertUserParam); \
-                                                                                                               \
-                if (OVR::IsAutomationRunning() && !OVR::OVRIsDebuggerPresent())                                \
-                {                                                                                              \
-					/* Do nothing to allow error code examination */										   \
-                }                                                                                              \
-                else if (ovrAssertUserHandler && !OVR::OVRIsDebuggerPresent())                                 \
-                {                                                                                              \
-                    ovrAssertUserHandler(ovrAssertUserParam, "Assertion failure", message);                    \
-                }                                                                                              \
-                else                                                                                           \
-                {                                                                                              \
-                    OVR_DEBUG_BREAK;                                                                           \
-                }                                                                                              \
-            }                                                                                                  \
+        #ifndef OVR_FAIL_M
+            #define OVR_FAIL_M(message)                                                                            \
+                {                                                                                                  \
+                    intptr_t ovrAssertUserParam;                                                                   \
+                    OVR::OVRAssertionHandler ovrAssertUserHandler = OVR::GetAssertionHandler(&ovrAssertUserParam); \
+                                                                                                                   \
+                    if (OVR::IsAutomationRunning() && !OVR::OVRIsDebuggerPresent())                                \
+                    {                                                                                              \
+                        /* Do nothing to allow error code examination */										   \
+                    }                                                                                              \
+                    else if (ovrAssertUserHandler && !OVR::OVRIsDebuggerPresent())                                 \
+                    {                                                                                              \
+                        ovrAssertUserHandler(ovrAssertUserParam, "Assertion failure", message);                    \
+                    }                                                                                              \
+                    else                                                                                           \
+                    {                                                                                              \
+                        OVR_DEBUG_BREAK;                                                                           \
+                    }                                                                                              \
+                }
+        #endif
 
-        #define OVR_FAIL()  \
-            OVR_FAIL_M("Assertion failure")  
-
-        #define OVR_FAIL_F(format, ...)         \
-            do {                                \
-                OVR_Fail_F(format, __VA_ARGS__) \
-            } while(0)
+        #ifndef OVR_FAIL
+            #define OVR_FAIL()  \
+                OVR_FAIL_M("Assertion failure")  
+        #endif
 
         // void OVR_ASSERT_M(bool expression, const char* message);
         // Note: The expression below is expanded into all usage of this assertion macro. 
         // We should try to minimize the size of the expanded code to the extent possible.
-        #define OVR_ASSERT_M(p, message)   \
-            do {                           \
-                if (!(p))                  \
-                    OVR_FAIL_M(message)    \
-            } while(0)
+        #ifndef OVR_ASSERT_M
+            #define OVR_ASSERT_M(p, message)   \
+                do {                           \
+                    if (!(p))                  \
+                        OVR_FAIL_M(message)    \
+                } while(0)
+        #endif
 
         // void OVR_ASSERT(bool expression);
-        #define OVR_ASSERT(p) OVR_ASSERT_M((p), (#p))
-
-        // void OVR_ASSERT_F(bool expression, const char* format, ...);
-        #define OVR_ASSERT_F(p, format, ...)         \
-            do {                                     \
-                if (!(p))                            \
-                    OVR_Fail_F(format, __VA_ARGS__); \
-            } while(0)
-
+        #ifndef OVR_ASSERT
+            #define OVR_ASSERT(p) OVR_ASSERT_M((p), (#p))
+        #endif
     #endif
 
     // Acts the same as OVR_ASSERT in debug builds. Acts the same as OVR_UNUSED in release builds.
     // Example usage: OVR_ASSERT_AND_UNUSED(x < 30, x);
-    #define OVR_ASSERT_AND_UNUSED(expression, value) OVR_ASSERT(expression); OVR_UNUSED(value)
+    #ifndef OVR_ASSERT_AND_UNUSED
+        #define OVR_ASSERT_AND_UNUSED(expression, value) OVR_ASSERT(expression); OVR_UNUSED(value)
+    #endif
 
 #else 
 
     // The expression is defined only in debug builds. It is defined away in release builds.
-    #define OVR_DEBUG_CODE(c)
+    #ifndef OVR_DEBUG_CODE
+        #define OVR_DEBUG_CODE(c)
+    #endif
 
     // Causes a debugger breakpoint in debug builds. Has no effect in release builds.
-    #define OVR_DEBUG_BREAK  ((void)0)
+    #ifndef OVR_DEBUG_BREAK
+        #define OVR_DEBUG_BREAK  ((void)0)
+    #endif
 
     // In debug builds this tests the given expression; if false then executes OVR_DEBUG_BREAK,
     // if true then no action. Has no effect in release builds.
-    #define OVR_FAIL_M(message)  ((void)0)
-    #define OVR_FAIL()           ((void)0)
-    #define OVR_FAIL_F(...)      ((void)0)
-    #define OVR_ASSERT_M(p, m)   ((void)0)
-    #define OVR_ASSERT(p)        ((void)0)
-    #define OVR_ASSERT_F(p, ...) ((void)0)
+    #ifndef OVR_FAIL_M
+        #define OVR_FAIL_M(message)  ((void)0)
+    #endif
+    #ifndef OVR_FAIL
+        #define OVR_FAIL()           ((void)0)
+    #endif
+    #ifndef OVR_ASSERT_M
+        #define OVR_ASSERT_M(p, m)   ((void)0)
+    #endif
+    #ifndef OVR_ASSERT
+        #define OVR_ASSERT(p)        ((void)0)
+    #endif
 
     // Acts the same as OVR_ASSERT in debug builds. Acts the same as OVR_UNUSED in release builds.
     // Example usage: OVR_ASSERT_AND_UNUSED(x < 30, x);
-    #define OVR_ASSERT_AND_UNUSED(expression, value) OVR_UNUSED(value)
-
+    #ifndef OVR_ASSERT_AND_UNUSED
+        #define OVR_ASSERT_AND_UNUSED(expression, value) OVR_UNUSED(value)
+    #endif
 #endif // OVR_BUILD_DEBUG
 
 
@@ -887,6 +934,9 @@ namespace OVR
     #define OVR_ARRAY_COUNT(x) (sizeof(OVRArrayCountHelper(x)))
 #endif
 
+// Workaround for https://connect.microsoft.com/VisualStudio/feedback/details/759407/can-not-get-size-of-static-array-defined-in-class-template
+#define OVR_STRUCT_MEMBER_ARRAY_COUNT(thestruct, themember) OVR_ARRAY_COUNT(((thestruct*)0)->themember)
+
 
 // ------------------------------------------------------------------------
 // ***** OVR_CURRENT_FUNCTION
@@ -985,21 +1035,23 @@ namespace OVR
 //     }
 //
 
-#if defined(OVR_CC_GNU)
-#  define   OVR_UNUSED(a)   do {__typeof__ (&a) __attribute__ ((unused)) __tmp = &a; } while(0)
-#else
-#  define   OVR_UNUSED(a)   (a)
-#endif
+#ifndef OVR_UNUSED
+    #if defined(OVR_CC_GNU)
+    #  define   OVR_UNUSED(a)   do {__typeof__ (&a) __attribute__ ((unused)) __tmp = &a; } while(0)
+    #else
+    #  define   OVR_UNUSED(a)   (a)
+    #endif
 
-#define     OVR_UNUSED1(a1) OVR_UNUSED(a1)
-#define     OVR_UNUSED2(a1,a2) OVR_UNUSED(a1); OVR_UNUSED(a2)
-#define     OVR_UNUSED3(a1,a2,a3) OVR_UNUSED2(a1,a2); OVR_UNUSED(a3)
-#define     OVR_UNUSED4(a1,a2,a3,a4) OVR_UNUSED3(a1,a2,a3); OVR_UNUSED(a4)
-#define     OVR_UNUSED5(a1,a2,a3,a4,a5) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED(a5)
-#define     OVR_UNUSED6(a1,a2,a3,a4,a5,a6) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED2(a5,a6)
-#define     OVR_UNUSED7(a1,a2,a3,a4,a5,a6,a7) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED3(a5,a6,a7)
-#define     OVR_UNUSED8(a1,a2,a3,a4,a5,a6,a7,a8) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED4(a5,a6,a7,a8)
-#define     OVR_UNUSED9(a1,a2,a3,a4,a5,a6,a7,a8,a9) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED5(a5,a6,a7,a8,a9)
+    #define     OVR_UNUSED1(a1) OVR_UNUSED(a1)
+    #define     OVR_UNUSED2(a1,a2) OVR_UNUSED(a1); OVR_UNUSED(a2)
+    #define     OVR_UNUSED3(a1,a2,a3) OVR_UNUSED2(a1,a2); OVR_UNUSED(a3)
+    #define     OVR_UNUSED4(a1,a2,a3,a4) OVR_UNUSED3(a1,a2,a3); OVR_UNUSED(a4)
+    #define     OVR_UNUSED5(a1,a2,a3,a4,a5) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED(a5)
+    #define     OVR_UNUSED6(a1,a2,a3,a4,a5,a6) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED2(a5,a6)
+    #define     OVR_UNUSED7(a1,a2,a3,a4,a5,a6,a7) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED3(a5,a6,a7)
+    #define     OVR_UNUSED8(a1,a2,a3,a4,a5,a6,a7,a8) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED4(a5,a6,a7,a8)
+    #define     OVR_UNUSED9(a1,a2,a3,a4,a5,a6,a7,a8,a9) OVR_UNUSED4(a1,a2,a3,a4); OVR_UNUSED5(a5,a6,a7,a8,a9)
+#endif
 
 
 //-----------------------------------------------------------------------------------

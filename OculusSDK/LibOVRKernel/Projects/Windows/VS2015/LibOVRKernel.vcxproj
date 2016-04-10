@@ -35,6 +35,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\Logging\include\Logging_Library.h" />
+    <ClInclude Include="..\..\..\..\Logging\src\internal\Logging_Tools.h" />
+    <ClInclude Include="..\..\..\..\Logging\src\Logging_OutputPlugins.h" />
     <ClInclude Include="..\..\..\Src\GL\CAPI_GLE.h" />
     <ClInclude Include="..\..\..\Src\GL\CAPI_GLE_GL.h" />
     <ClInclude Include="..\..\..\Src\Kernel\OVR_Alg.h" />
@@ -85,6 +88,9 @@
     <ClInclude Include="..\..\..\Src\Util\Util_Watchdog.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\Logging\src\internal\Logging_Tools.cpp" />
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_Library.cpp" />
+    <ClCompile Include="..\..\..\..\Logging\src\Logging_OutputPlugins.cpp" />
     <ClCompile Include="..\..\..\Src\GL\CAPI_GLE.cpp" />
     <ClCompile Include="..\..\..\Src\Kernel\OVR_Alg.cpp" />
     <ClCompile Include="..\..\..\Src\Kernel\OVR_Allocator.cpp" />
@@ -422,6 +428,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugStatic|Win32'">
     <ClCompile>
@@ -447,6 +456,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -474,6 +486,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugStatic|x64'">
     <ClCompile>
@@ -501,6 +516,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -517,7 +535,7 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalOptions>/d2Zi+ /we4263 /we4264 /we4265 /we4266 /we4062 %(AdditionalOptions)</AdditionalOptions>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
       <StringPooling>false</StringPooling>
       <ExceptionHandling>SyncCThrow</ExceptionHandling>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
@@ -533,6 +551,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseStatic|Win32'">
     <ClCompile>
@@ -549,7 +570,7 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalOptions>/d2Zi+ /we4263 /we4264 /we4265 /we4266 /we4062 %(AdditionalOptions)</AdditionalOptions>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
       <StringPooling>false</StringPooling>
       <ExceptionHandling>SyncCThrow</ExceptionHandling>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
@@ -565,6 +586,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -581,7 +605,7 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalOptions>/d2Zi+ /we4263 /we4264 /we4265 /we4266 /we4062 %(AdditionalOptions)</AdditionalOptions>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
       <StringPooling>false</StringPooling>
       <ExceptionHandling>SyncCThrow</ExceptionHandling>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
@@ -598,6 +622,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseStatic|x64'">
     <ClCompile>
@@ -614,9 +641,9 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalOptions>/d2Zi+ /we4263 /we4264 /we4265 /we4266 /we4062 %(AdditionalOptions)</AdditionalOptions>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
       <StringPooling>false</StringPooling>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>SyncCThrow</ExceptionHandling>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <TreatWarningAsError>true</TreatWarningAsError>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -631,6 +658,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

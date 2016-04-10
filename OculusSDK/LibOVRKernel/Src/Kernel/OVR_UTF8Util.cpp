@@ -7,16 +7,16 @@ Notes       :
 Notes       :   Much useful info at "UTF-8 and Unicode FAQ"
                 http://www.cl.cam.ac.uk/~mgk25/unicode.html
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -59,32 +59,37 @@ size_t Strlcpy(char* pDestUTF8, size_t destCharCount, const wchar_t* pSrcUCS, si
     if (sourceLength == (size_t)-1)
         sourceLength = wcslen(pSrcUCS);
 
-    size_t destLength = 0, requiredLength = 0;
+    size_t destLength = 0;
 
-    for (size_t i = 0; (i < sourceLength); ++i)
+    size_t i;
+    for (i = 0; i < sourceLength; ++i)
     {
         char     buff[6]; // longest utf8 encoding just to be safe
         intptr_t count = 0;
 
         EncodeChar(buff, &count, pSrcUCS[i]);
 
-        // We check requiredLength instead of destLength because we want to make sure that the first time 
-        // that we fail the 'if' below, we don't succeed at it the next time we execute it (which could 
-        // otherwise happen if count were a lower number on the subsequent pass -- low enough that the if 
-        // would succeed).
-        if ((requiredLength + count) < destCharCount)  // If there is enough space to append count bytes (leaving room for a trailing '\0')...
-        {
-            memcpy(pDestUTF8 + destLength, buff, count);
-            destLength += (size_t)count;
-        }
+        // If this character occupies more than the remaining space (leaving room for the trailing '\0'), truncate here
+        if ((destLength + count) >= destCharCount)
+            break;
 
-        requiredLength += (size_t)count;
+        memcpy(pDestUTF8 + destLength, buff, count);
+        destLength += (size_t)count;
     }
 
-    if (destLength < destCharCount) // Should be true for all cases other than destCharCount == 0.
+    // Should be true for all cases other than destCharCount == 0.
+    if (destLength < destCharCount)
         pDestUTF8[destLength] = '\0';
 
-    return requiredLength; // Return the intended strlen of pDestUTF8.
+    // Compute the required destination size for any remaining source characters
+    // Note a very long wchar string with lots of multibyte encodings can overflow destLength
+    // This should be okay since we'll just treat those cases (likely to be originating
+    // from an attacker) as shorter strings
+    while (i < sourceLength)
+        destLength += GetEncodeCharSize(pSrcUCS[i++]);
+
+    // Return the intended strlen of pDestUTF8.
+    return destLength;
 }
 
 
@@ -105,7 +110,7 @@ size_t Strlcpy(wchar_t* pDestUCS, size_t destCharCount, const char* pSrcUTF8, si
                 c = 0x0000FFFD;
         #endif
 
-        if((destLength + 1) < destCharCount)  // If there is enough space to append a wchar_t (leaving room for a trailing '\0')...
+        if ((destLength + 1) < destCharCount)  // If there is enough space to append a wchar_t (leaving room for a trailing '\0')...
         {
             pDestUCS[destLength] = wchar_t(c);
             destLength++;
@@ -180,31 +185,81 @@ uint32_t GetCharAt(intptr_t index, const char* putf8str, intptr_t length)
     return c;
 }
 
-intptr_t GetByteIndex(intptr_t index, const char *putf8str, intptr_t length)
+intptr_t GetByteIndex(intptr_t index, const char *putf8str, intptr_t byteLength)
 {
     const char* buf = putf8str;
 
-    if (length != -1)
+    if (byteLength >= 0)
     {
-        while ((buf - putf8str) < length && index > 0)
+        const char* lastValid = putf8str;
+        while ((buf - putf8str) < byteLength && index > 0)
         {
+            lastValid = buf;
+            // XXX this may read up to 5 bytes past byteLength
             UTF8Util::DecodeNextChar_Advance0(&buf);
             index--;
         }
 
-        return buf-putf8str;
+        // check for UTF8 characters which ran past the end of the buffer
+        if (buf - putf8str > byteLength)
+            return lastValid - putf8str;
+
+        return buf - putf8str;
     }
 
     while (index > 0) 
     {
-        uint32_t c = UTF8Util::DecodeNextChar_Advance0(&buf);
+        uint32_t c = UTF8Util::DecodeNextChar(&buf);
         index--;
 
+        // okay to index past null-terminator, DecodeNextChar will not advance past it
         if (c == 0)
-            return buf-putf8str;
-    };
+            break;
+    }
 
-    return buf-putf8str;
+    return buf - putf8str;
+}
+
+intptr_t GetByteIndexChecked(intptr_t index, const char *putf8str, intptr_t byteLength)
+{
+    const char* buf = putf8str;
+
+    // before start of string?
+    if (index < 0)
+        return -1;
+
+    if (byteLength >= 0)
+    {
+        while ((buf - putf8str) < byteLength && index > 0)
+        {
+            // XXX this may read up to 5 bytes past byteLength
+            UTF8Util::DecodeNextChar_Advance0(&buf);
+            index--;
+        }
+
+        // check for UTF8 characters which ran past the end of the buffer
+        if ((buf - putf8str) > byteLength)
+            return -1;
+    }
+    else
+    {
+        while (index > 0) 
+        {
+            uint32_t c = UTF8Util::DecodeNextChar_Advance0(&buf);
+            index--;
+
+            // ran past null terminator
+            if (c == 0)
+                return -1;
+        }
+    }
+
+    // ran off end of string
+    if (index != 0)
+        return -1;
+
+    // at the valid index'th character-boundary offset in the string
+    return buf - putf8str;
 }
 
 int GetEncodeCharSize(uint32_t ucs_character)
@@ -381,79 +436,6 @@ void EncodeChar(char* pbuffer, intptr_t* pindex, uint32_t ucs_character)
         // Invalid char; don't encode anything.
     }
 }
-
-intptr_t GetEncodeStringSize(const wchar_t* pchar, intptr_t length)
-{
-    intptr_t len = 0;
-    if (length != -1)
-        for (int i = 0; i < length; i++)
-        {
-            len += GetEncodeCharSize(pchar[i]);
-        }
-    else
-        for (int i = 0;; i++)
-        {
-            if (pchar[i] == 0)
-                return len;
-            len += GetEncodeCharSize(pchar[i]);
-        }
-    return len;
-}
-
-void EncodeString(char *pbuff, const wchar_t* pchar, intptr_t length)
-{
-    intptr_t ofs = 0;
-    if (length != -1)
-    {
-        for (int i = 0; i < length; i++)
-        {            
-            EncodeChar(pbuff, &ofs, pchar[i]);
-        }
-    }
-    else
-    {
-        for (int i = 0;; i++)
-        {
-            if (pchar[i] == 0)
-                break;
-            EncodeChar(pbuff, &ofs, pchar[i]);
-        }
-    }
-    pbuff[ofs] = 0;
-}
-
-size_t DecodeString(wchar_t *pbuff, const char* putf8str, intptr_t bytesLen)
-{
-    wchar_t *pbegin = pbuff;
-    if (bytesLen == -1)
-    {
-        while (1)
-        {
-            uint32_t ch = DecodeNextChar_Advance0(&putf8str);
-            if (ch == 0)
-                break;
-            else if (ch >= 0xFFFF)
-                ch = 0xFFFD;
-            *pbuff++ = wchar_t(ch);
-        }
-    }
-    else
-    {
-        const char* p = putf8str;
-        while ((p - putf8str) < bytesLen)
-        {
-            uint32_t ch = DecodeNextChar_Advance0(&p);
-            if (ch >= 0xFFFF)
-                ch = 0xFFFD;
-            *pbuff++ = wchar_t(ch);
-        }
-    }
-
-    *pbuff = 0;
-    return pbuff - pbegin;
-}
-
-
 
 }} // namespace UTF8Util::OVR
 

@@ -5,16 +5,16 @@ Content     :   Standard C function implementation
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -77,6 +77,30 @@ size_t OVR_CDECL OVR_strlcpy(char* dest, const char* src, size_t destsize)
     return (size_t)((s - src) - 1);
 }
 
+size_t OVR_CDECL OVR_strlcpy(wchar_t* dest, const wchar_t* src, size_t destsize)
+{
+    const wchar_t* s = src;
+    size_t         n = destsize;
+
+    if(n && --n)
+    {
+        do{
+            if((*dest++ = *s++) == 0)
+                break;
+        } while(--n);
+    }
+
+    if(!n)
+    {
+        if(destsize)
+            *dest = 0;
+        while(*s++)
+            { }
+    }
+
+    return (size_t)((s - src) - 1);
+}
+
 
 size_t OVR_CDECL OVR_strlcat(char* dest, const char* src, size_t destsize)
 {
@@ -100,6 +124,28 @@ size_t OVR_CDECL OVR_strlcat(char* dest, const char* src, size_t destsize)
     return t;
 }
 
+
+size_t OVR_CDECL OVR_strlcat(wchar_t* dest, const wchar_t* src, size_t destsize)
+{
+    const size_t d = destsize ? OVR_strlen(dest) : 0;
+    const size_t s = OVR_strlen(src);
+    const size_t t = s + d;
+
+    OVR_ASSERT((destsize == 0) || (d < destsize));
+
+    if(t < destsize)
+        memcpy(dest + d, src, (s + 1) * sizeof(*src));
+    else
+    {
+        if(destsize)
+        {
+            memcpy(dest + d, src, ((destsize - d) - 1) * sizeof(*src));
+            dest[destsize - 1] = 0;
+        }
+    }
+
+    return t;
+}
 
 // Case insensitive compare implemented in platform-specific way.
 int OVR_CDECL OVR_stricmp(const char* a, const char* b)

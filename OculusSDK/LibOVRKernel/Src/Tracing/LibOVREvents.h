@@ -215,7 +215,7 @@ Remarks:
 #endif
 #endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 //+
-// Provider OVR-SDK-LibOVR Event Count 49
+// Provider OVR-SDK-LibOVR Event Count 63
 //+
 EXTERN_C __declspec(selectany) const GUID LibOVRProvider = {0x553787fc, 0xd3d7, 0x4f5e, {0xac, 0xb2, 0x15, 0x97, 0xc7, 0x20, 0x9b, 0x3c}};
 
@@ -249,7 +249,10 @@ EXTERN_C __declspec(selectany) const GUID LibOVRProvider = {0x553787fc, 0xd3d7, 
 #define CAMERA_TRACE 0x4
 #define LOG_TRACE 0x5
 #define SUBMITFRAME_TRACE 0x6
-#define SENSOR_TRACE 0x7
+#define PHASESYNC_TRACE 0x7
+#define SENSOR_TRACE 0x8
+#define VIRTUALDISPLAY_TRACE 0x9
+#define COMPOSITOR_RUNLOOP_TRACE 0xa
 
 //
 // Event Descriptors
@@ -334,24 +337,52 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR QueueAheadDelayEnd = {0x21
 #define QueueAheadDelayEnd_value 0x21
 EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR HmdDisplay = {0x22, 0x0, 0x11, 0x4, 0x11, 0x3, 0x4000000000000000};
 #define HmdDisplay_value 0x22
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR VSync = {0x23, 0x0, 0x11, 0x4, 0xf, 0x2, 0x4000000000000000};
-#define VSync_value 0x23
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppCompositorFocus = {0x24, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define AppCompositorFocus_value 0x24
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppConnect = {0x25, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define AppConnect_value 0x25
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppDisconnect = {0x26, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define AppDisconnect_value 0x26
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppNoOp = {0x27, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define AppNoOp_value 0x27
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR PosePrediction = {0x28, 0x0, 0x11, 0x4, 0xd, 0x7, 0x4000000000000000};
-#define PosePrediction_value 0x28
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR LatencyTiming = {0x29, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define LatencyTiming_value 0x29
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR EndFrameAppTiming = {0x2a, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
-#define EndFrameAppTiming_value 0x2a
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR HardwareInfo = {0x2b, 0x0, 0x11, 0x4, 0x0, 0x0, 0x4000000000000000};
-#define HardwareInfo_value 0x2b
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR PhaseSyncBegin = {0x23, 0x0, 0x11, 0x4, 0xd, 0x7, 0x4000000000000000};
+#define PhaseSyncBegin_value 0x23
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR PhaseSyncEnd = {0x24, 0x0, 0x11, 0x4, 0x10, 0x7, 0x4000000000000000};
+#define PhaseSyncEnd_value 0x24
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR VSync = {0x25, 0x0, 0x11, 0x4, 0xf, 0x2, 0x4000000000000000};
+#define VSync_value 0x25
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppCompositorFocus = {0x26, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define AppCompositorFocus_value 0x26
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppConnect = {0x27, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define AppConnect_value 0x27
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppDisconnect = {0x28, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define AppDisconnect_value 0x28
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AppNoOp = {0x29, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define AppNoOp_value 0x29
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR PosePrediction = {0x2a, 0x0, 0x11, 0x4, 0xd, 0x8, 0x4000000000000000};
+#define PosePrediction_value 0x2a
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR LatencyTiming = {0x2b, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define LatencyTiming_value 0x2b
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR EndFrameAppTiming = {0x2c, 0x0, 0x11, 0x4, 0xc, 0x5, 0x4000000000000000};
+#define EndFrameAppTiming_value 0x2c
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR HardwareInfo = {0x2d, 0x0, 0x11, 0x4, 0x0, 0x0, 0x4000000000000000};
+#define HardwareInfo_value 0x2d
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR VirtualDisplayPacketTrace = {0x2e, 0x0, 0x11, 0x4, 0xc, 0x9, 0x4000000000000000};
+#define VirtualDisplayPacketTrace_value 0x2e
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR ClientFrameMissed = {0x2f, 0x0, 0x11, 0x4, 0xc, 0x9, 0x4000000000000000};
+#define ClientFrameMissed_value 0x2f
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionBegin = {0x30, 0x0, 0x11, 0x4, 0xd, 0xa, 0x4000000000000000};
+#define CompositionBegin_value 0x30
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionEnd = {0x31, 0x0, 0x11, 0x4, 0x10, 0xa, 0x4000000000000000};
+#define CompositionEnd_value 0x31
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR RenderPacketProcessEvent = {0x32, 0x0, 0x11, 0x4, 0xc, 0x9, 0x4000000000000000};
+#define RenderPacketProcessEvent_value 0x32
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR EndFrameOrigAppTiming = {0x33, 0x0, 0x11, 0x4, 0xd, 0x5, 0x4000000000000000};
+#define EndFrameOrigAppTiming_value 0x33
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR DistortionEndToEndTiming = {0x34, 0x0, 0x11, 0x0, 0xa, 0xa, 0x4000000000000000};
+#define DistortionEndToEndTiming_value 0x34
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionEndSpinWait = {0x35, 0x0, 0x11, 0x4, 0x10, 0xa, 0x4000000000000000};
+#define CompositionEndSpinWait_value 0x35
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionFlushingToGPU = {0x36, 0x0, 0x11, 0x4, 0xc, 0xa, 0x4000000000000000};
+#define CompositionFlushingToGPU_value 0x36
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR PhaseSyncGPUCompleted = {0x37, 0x0, 0x11, 0x4, 0xc, 0x7, 0x4000000000000000};
+#define PhaseSyncGPUCompleted_value 0x37
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionMissedCompositorFrame = {0x38, 0x0, 0x11, 0x4, 0xc, 0xa, 0x4000000000000000};
+#define CompositionMissedCompositorFrame_value 0x38
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR CompositionGPUStartTime = {0x39, 0x0, 0x11, 0x4, 0xc, 0xa, 0x4000000000000000};
+#define CompositionGPUStartTime_value 0x39
 
 //
 // Note on Generate Code from Manifest Windows Vista and above
@@ -381,16 +412,14 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR HardwareInfo = {0x2b, 0x0,
 //
 
 EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG OVR_SDK_LibOVREnableBits[1];
-EXTERN_C __declspec(selectany) const ULONGLONG OVR_SDK_LibOVRKeywords[4] = {0x4000000000000000, 0x8000000000000000, 0x8000000000000000, 0x2000000000000000};
-EXTERN_C __declspec(selectany) const UCHAR OVR_SDK_LibOVRLevels[4] = {4, 4, 5, 2};
-EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT LibOVRProvider_Context = {0, 0, 0, 0, 0, 0, 0, 0, 4, OVR_SDK_LibOVREnableBits, OVR_SDK_LibOVRKeywords, OVR_SDK_LibOVRLevels};
+EXTERN_C __declspec(selectany) const ULONGLONG OVR_SDK_LibOVRKeywords[5] = {0x4000000000000000, 0x8000000000000000, 0x8000000000000000, 0x2000000000000000, 0x4000000000000000};
+EXTERN_C __declspec(selectany) const UCHAR OVR_SDK_LibOVRLevels[5] = {4, 4, 5, 2, 0};
+EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT LibOVRProvider_Context = {0, 0, 0, 0, 0, 0, 0, 0, 5, OVR_SDK_LibOVREnableBits, OVR_SDK_LibOVRKeywords, OVR_SDK_LibOVRLevels};
 
 EXTERN_C __declspec(selectany) REGHANDLE OVR_SDK_LibOVRHandle = (REGHANDLE)0;
 
 #if !defined(McGenEventRegisterUnregister)
 #define McGenEventRegisterUnregister
-#pragma warning(push)
-#pragma warning(disable:6103)
 DECLSPEC_NOINLINE __inline
 ULONG __stdcall
 McGenEventRegister(
@@ -434,7 +463,6 @@ Remarks:
 
     return Error;
 }
-#pragma warning(pop)
 
 
 DECLSPEC_NOINLINE __inline
@@ -800,9 +828,9 @@ Remarks:
 //
 // Event Macro for HmdTrackingState
 //
-#define EventWriteHmdTrackingState(TimeInSeconds, HeadPoseQuat, HeadPoseTranslation, HeadAngularVelocity, HeadLinearVelocity, CameraPoseQuat, CameraPoseTranslation, SensorAccelerometer, SensorGyro, SensorMagnetometer, SensorTemperature, SensortTimeInSeconds, StatusFlags, LastCameraFrameCounter)\
+#define EventWriteHmdTrackingState(TimeInSeconds, HeadPoseQuat, HeadPoseTranslation, HeadAngularVelocity, HeadLinearVelocity, CameraPoseQuat, CameraPoseTranslation, StatusFlags)\
         EventEnabledHmdTrackingState() ?\
-        Template_gF4F3F3F3F4F3F3F3F3ffqq(OVR_SDK_LibOVRHandle, &HmdTrackingState, TimeInSeconds, HeadPoseQuat, HeadPoseTranslation, HeadAngularVelocity, HeadLinearVelocity, CameraPoseQuat, CameraPoseTranslation, SensorAccelerometer, SensorGyro, SensorMagnetometer, SensorTemperature, SensortTimeInSeconds, StatusFlags, LastCameraFrameCounter)\
+        Template_gF4F3F3F3F4F3q(OVR_SDK_LibOVRHandle, &HmdTrackingState, TimeInSeconds, HeadPoseQuat, HeadPoseTranslation, HeadAngularVelocity, HeadLinearVelocity, CameraPoseQuat, CameraPoseTranslation, StatusFlags)\
         : ERROR_SUCCESS\
 
 //
@@ -1044,6 +1072,34 @@ Remarks:
         : ERROR_SUCCESS\
 
 //
+// Enablement check macro for PhaseSyncBegin
+//
+
+#define EventEnabledPhaseSyncBegin() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for PhaseSyncBegin
+//
+#define EventWritePhaseSyncBegin(LastCompositeTime, LastVSyncTime, FrameIntervalMS, SemaphoreMS, SleepMS, SpinMS, PhaseSyncMS, BeginFrameTime, TargetCompletionTime, TargetCompositeTime, TargetVSyncTime)\
+        EventEnabledPhaseSyncBegin() ?\
+        Template_ggfffffgggg(OVR_SDK_LibOVRHandle, &PhaseSyncBegin, LastCompositeTime, LastVSyncTime, FrameIntervalMS, SemaphoreMS, SleepMS, SpinMS, PhaseSyncMS, BeginFrameTime, TargetCompletionTime, TargetCompositeTime, TargetVSyncTime)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for PhaseSyncEnd
+//
+
+#define EventEnabledPhaseSyncEnd() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for PhaseSyncEnd
+//
+#define EventWritePhaseSyncEnd(BeginFrameTime, EndFrameTime, CompletionTime, CompositeTime, VSyncTime, FrameTimeMS, FrameTimeCpuMS, FrameTimeVarianceMS, QueueAhead, FramesMissed, AvgFrameTimeMS, AvgFrameTimeCpuMS, AvgFrameTimeVarianceMS, AvgQueueAhead, SyncFrameTimeMS, SyncQueueAhead, SyncFramesMissed, PhaseSyncMS)\
+        EventEnabledPhaseSyncEnd() ?\
+        Template_gggggffffqffffffqf(OVR_SDK_LibOVRHandle, &PhaseSyncEnd, BeginFrameTime, EndFrameTime, CompletionTime, CompositeTime, VSyncTime, FrameTimeMS, FrameTimeCpuMS, FrameTimeVarianceMS, QueueAhead, FramesMissed, AvgFrameTimeMS, AvgFrameTimeCpuMS, AvgFrameTimeVarianceMS, AvgQueueAhead, SyncFrameTimeMS, SyncQueueAhead, SyncFramesMissed, PhaseSyncMS)\
+        : ERROR_SUCCESS\
+
+//
 // Enablement check macro for VSync
 //
 
@@ -1150,9 +1206,9 @@ Remarks:
 //
 // Event Macro for EndFrameAppTiming
 //
-#define EventWriteEndFrameAppTiming(FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, DistortionGpuDuration)\
+#define EventWriteEndFrameAppTiming(FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, RenderCount)\
         EventEnabledEndFrameAppTiming() ?\
-        Template_qggggggg(OVR_SDK_LibOVRHandle, &EndFrameAppTiming, FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, DistortionGpuDuration)\
+        Template_qggggggd(OVR_SDK_LibOVRHandle, &EndFrameAppTiming, FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, RenderCount)\
         : ERROR_SUCCESS\
 
 //
@@ -1164,9 +1220,177 @@ Remarks:
 //
 // Event Macro for HardwareInfo
 //
-#define EventWriteHardwareInfo(RequestedBits, CollectedBits, ImuTemp, StmTemp, NrfTemp, VBusVoltage, IAD, Proximity, PanelOnTime, UseRolling, HighBrightness, DP, SelfRefresh, Persistence, LightingOffset, PixelSettle, TotalRows, CameraCount, TrackerSensorDieTemp, TrackerEtronTemp, TrackerCCMTemp)\
+#define EventWriteHardwareInfo(RequestedBits, CollectedBits, ImuTemp, StmTemp, NrfTemp, VBusVoltage, IAD, Proximity, PanelOnTime, UseRolling, HighBrightness, DP, SelfRefresh, Persistence, LightingOffset, PixelSettle, TotalRows)\
         EventEnabledHardwareInfo() ?\
-        Template_qqhhhhhhqtttthhhhdF2F2F2(OVR_SDK_LibOVRHandle, &HardwareInfo, RequestedBits, CollectedBits, ImuTemp, StmTemp, NrfTemp, VBusVoltage, IAD, Proximity, PanelOnTime, UseRolling, HighBrightness, DP, SelfRefresh, Persistence, LightingOffset, PixelSettle, TotalRows, CameraCount, TrackerSensorDieTemp, TrackerEtronTemp, TrackerCCMTemp)\
+        Template_qqhhhhhhqtttthhhh(OVR_SDK_LibOVRHandle, &HardwareInfo, RequestedBits, CollectedBits, ImuTemp, StmTemp, NrfTemp, VBusVoltage, IAD, Proximity, PanelOnTime, UseRolling, HighBrightness, DP, SelfRefresh, Persistence, LightingOffset, PixelSettle, TotalRows)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for VirtualDisplayPacketTrace
+//
+
+#define EventEnabledVirtualDisplayPacketTrace() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for VirtualDisplayPacketTrace
+//
+#define EventWriteVirtualDisplayPacketTrace(PacketType, Stage, SubmittingProcessID, ActiveProcessID)\
+        EventEnabledVirtualDisplayPacketTrace() ?\
+        Template_xdxx(OVR_SDK_LibOVRHandle, &VirtualDisplayPacketTrace, PacketType, Stage, SubmittingProcessID, ActiveProcessID)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for ClientFrameMissed
+//
+
+#define EventEnabledClientFrameMissed() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for ClientFrameMissed
+//
+#define EventWriteClientFrameMissed(FrameIndex, ProcessID)\
+        EventEnabledClientFrameMissed() ?\
+        Template_xx(OVR_SDK_LibOVRHandle, &ClientFrameMissed, FrameIndex, ProcessID)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionBegin
+//
+
+#define EventEnabledCompositionBegin() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionBegin
+//
+#define EventWriteCompositionBegin(ExpectedCPUStartTimeInSeconds, ActualCPUStartTimeInSeconds)\
+        EventEnabledCompositionBegin() ?\
+        Template_gg(OVR_SDK_LibOVRHandle, &CompositionBegin, ExpectedCPUStartTimeInSeconds, ActualCPUStartTimeInSeconds)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionEnd
+//
+
+#define EventEnabledCompositionEnd() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionEnd
+//
+#define EventWriteCompositionEnd()\
+        EventEnabledCompositionEnd() ?\
+        TemplateEventDescriptor(OVR_SDK_LibOVRHandle, &CompositionEnd)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for RenderPacketProcessEvent
+//
+
+#define EventEnabledRenderPacketProcessEvent() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for RenderPacketProcessEvent
+//
+#define EventWriteRenderPacketProcessEvent(Stage, ProcessID)\
+        EventEnabledRenderPacketProcessEvent() ?\
+        Template_qx(OVR_SDK_LibOVRHandle, &RenderPacketProcessEvent, Stage, ProcessID)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for EndFrameOrigAppTiming
+//
+
+#define EventEnabledEndFrameOrigAppTiming() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for EndFrameOrigAppTiming
+//
+#define EventWriteEndFrameOrigAppTiming(FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, RenderCount)\
+        EventEnabledEndFrameOrigAppTiming() ?\
+        Template_qggggggd(OVR_SDK_LibOVRHandle, &EndFrameOrigAppTiming, FrameIndex, RenderImuTime, ScanoutStartTime, GpuRenderDuration, BeginRenderingTime, EndRenderingTime, QueueAheadSeconds, RenderCount)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for DistortionEndToEndTiming
+//
+
+#define EventEnabledDistortionEndToEndTiming() ((OVR_SDK_LibOVREnableBits[0] & 0x00000010) != 0)
+
+//
+// Event Macro for DistortionEndToEndTiming
+//
+#define EventWriteDistortionEndToEndTiming(ElapsedMs)\
+        EventEnabledDistortionEndToEndTiming() ?\
+        Template_g(OVR_SDK_LibOVRHandle, &DistortionEndToEndTiming, ElapsedMs)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionEndSpinWait
+//
+
+#define EventEnabledCompositionEndSpinWait() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionEndSpinWait
+//
+#define EventWriteCompositionEndSpinWait()\
+        EventEnabledCompositionEndSpinWait() ?\
+        TemplateEventDescriptor(OVR_SDK_LibOVRHandle, &CompositionEndSpinWait)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionFlushingToGPU
+//
+
+#define EventEnabledCompositionFlushingToGPU() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionFlushingToGPU
+//
+#define EventWriteCompositionFlushingToGPU()\
+        EventEnabledCompositionFlushingToGPU() ?\
+        TemplateEventDescriptor(OVR_SDK_LibOVRHandle, &CompositionFlushingToGPU)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for PhaseSyncGPUCompleted
+//
+
+#define EventEnabledPhaseSyncGPUCompleted() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for PhaseSyncGPUCompleted
+//
+#define EventWritePhaseSyncGPUCompleted(AppGPUEndTimeSeconds)\
+        EventEnabledPhaseSyncGPUCompleted() ?\
+        Template_g(OVR_SDK_LibOVRHandle, &PhaseSyncGPUCompleted, AppGPUEndTimeSeconds)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionMissedCompositorFrame
+//
+
+#define EventEnabledCompositionMissedCompositorFrame() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionMissedCompositorFrame
+//
+#define EventWriteCompositionMissedCompositorFrame()\
+        EventEnabledCompositionMissedCompositorFrame() ?\
+        TemplateEventDescriptor(OVR_SDK_LibOVRHandle, &CompositionMissedCompositorFrame)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for CompositionGPUStartTime
+//
+
+#define EventEnabledCompositionGPUStartTime() ((OVR_SDK_LibOVREnableBits[0] & 0x00000001) != 0)
+
+//
+// Event Macro for CompositionGPUStartTime
+//
+#define EventWriteCompositionGPUStartTime(DistortionBeginTimeInSeconds)\
+        EventEnabledCompositionGPUStartTime() ?\
+        Template_g(OVR_SDK_LibOVRHandle, &CompositionGPUStartTime, DistortionBeginTimeInSeconds)\
         : ERROR_SUCCESS\
 
 #endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
@@ -1510,11 +1734,11 @@ Template_s(
 //
 //Template from manifest : HmdTrackingState
 //
-#ifndef Template_gF4F3F3F3F4F3F3F3F3ffqq_def
-#define Template_gF4F3F3F3F4F3F3F3F3ffqq_def
+#ifndef Template_gF4F3F3F3F4F3q_def
+#define Template_gF4F3F3F3F4F3q_def
 ETW_INLINE
 ULONG
-Template_gF4F3F3F3F4F3F3F3F3ffqq(
+Template_gF4F3F3F3F4F3q(
     _In_ REGHANDLE RegHandle,
     _In_ PCEVENT_DESCRIPTOR Descriptor,
     _In_ const double  _Arg0,
@@ -1524,18 +1748,12 @@ Template_gF4F3F3F3F4F3F3F3F3ffqq(
     _In_reads_(3) const float *_Arg4,
     _In_reads_(4) const float *_Arg5,
     _In_reads_(3) const float *_Arg6,
-    _In_reads_(3) const float *_Arg7,
-    _In_reads_(3) const float *_Arg8,
-    _In_reads_(3) const float *_Arg9,
-    _In_ const float  _Arg10,
-    _In_ const float  _Arg11,
-    _In_ const unsigned int  _Arg12,
-    _In_ const unsigned int  _Arg13
+    _In_ const unsigned int  _Arg7
     )
 {
-#define ARGUMENT_COUNT_gF4F3F3F3F4F3F3F3F3ffqq 14
+#define ARGUMENT_COUNT_gF4F3F3F3F4F3q 8
 
-    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_gF4F3F3F3F4F3F3F3F3ffqq];
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_gF4F3F3F3F4F3q];
 
     EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const double)  );
 
@@ -1551,21 +1769,9 @@ Template_gF4F3F3F3F4F3F3F3F3ffqq(
 
     EventDataDescCreate(&EventData[6],  _Arg6, sizeof(const float)*3);
 
-    EventDataDescCreate(&EventData[7],  _Arg7, sizeof(const float)*3);
+    EventDataDescCreate(&EventData[7], &_Arg7, sizeof(const unsigned int)  );
 
-    EventDataDescCreate(&EventData[8],  _Arg8, sizeof(const float)*3);
-
-    EventDataDescCreate(&EventData[9],  _Arg9, sizeof(const float)*3);
-
-    EventDataDescCreate(&EventData[10], &_Arg10, sizeof(const float)  );
-
-    EventDataDescCreate(&EventData[11], &_Arg11, sizeof(const float)  );
-
-    EventDataDescCreate(&EventData[12], &_Arg12, sizeof(const unsigned int)  );
-
-    EventDataDescCreate(&EventData[13], &_Arg13, sizeof(const unsigned int)  );
-
-    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_gF4F3F3F3F4F3F3F3F3ffqq, EventData);
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_gF4F3F3F3F4F3q, EventData);
 }
 #endif
 
@@ -2003,6 +2209,133 @@ Template_tqsssddddddxqt(
 #endif
 
 //
+//Template from manifest : PhaseSyncBegin
+//
+#ifndef Template_ggfffffgggg_def
+#define Template_ggfffffgggg_def
+ETW_INLINE
+ULONG
+Template_ggfffffgggg(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const double  _Arg0,
+    _In_ const double  _Arg1,
+    _In_ const float  _Arg2,
+    _In_ const float  _Arg3,
+    _In_ const float  _Arg4,
+    _In_ const float  _Arg5,
+    _In_ const float  _Arg6,
+    _In_ const double  _Arg7,
+    _In_ const double  _Arg8,
+    _In_ const double  _Arg9,
+    _In_ const double  _Arg10
+    )
+{
+#define ARGUMENT_COUNT_ggfffffgggg 11
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_ggfffffgggg];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[2], &_Arg2, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[3], &_Arg3, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[4], &_Arg4, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[5], &_Arg5, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[6], &_Arg6, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[7], &_Arg7, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[8], &_Arg8, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[9], &_Arg9, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[10], &_Arg10, sizeof(const double)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_ggfffffgggg, EventData);
+}
+#endif
+
+//
+//Template from manifest : PhaseSyncEnd
+//
+#ifndef Template_gggggffffqffffffqf_def
+#define Template_gggggffffqffffffqf_def
+ETW_INLINE
+ULONG
+Template_gggggffffqffffffqf(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const double  _Arg0,
+    _In_ const double  _Arg1,
+    _In_ const double  _Arg2,
+    _In_ const double  _Arg3,
+    _In_ const double  _Arg4,
+    _In_ const float  _Arg5,
+    _In_ const float  _Arg6,
+    _In_ const float  _Arg7,
+    _In_ const float  _Arg8,
+    _In_ const unsigned int  _Arg9,
+    _In_ const float  _Arg10,
+    _In_ const float  _Arg11,
+    _In_ const float  _Arg12,
+    _In_ const float  _Arg13,
+    _In_ const float  _Arg14,
+    _In_ const float  _Arg15,
+    _In_ const unsigned int  _Arg16,
+    _In_ const float  _Arg17
+    )
+{
+#define ARGUMENT_COUNT_gggggffffqffffffqf 18
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_gggggffffqffffffqf];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[2], &_Arg2, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[3], &_Arg3, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[4], &_Arg4, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[5], &_Arg5, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[6], &_Arg6, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[7], &_Arg7, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[8], &_Arg8, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[9], &_Arg9, sizeof(const unsigned int)  );
+
+    EventDataDescCreate(&EventData[10], &_Arg10, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[11], &_Arg11, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[12], &_Arg12, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[13], &_Arg13, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[14], &_Arg14, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[15], &_Arg15, sizeof(const float)  );
+
+    EventDataDescCreate(&EventData[16], &_Arg16, sizeof(const unsigned int)  );
+
+    EventDataDescCreate(&EventData[17], &_Arg17, sizeof(const float)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_gggggffffqffffffqf, EventData);
+}
+#endif
+
+//
 //Template from manifest : RecordedVSync
 //
 #ifndef Template_gqg_def
@@ -2147,11 +2480,11 @@ Template_ggggggggg(
 //
 //Template from manifest : EndFrameAppTiming
 //
-#ifndef Template_qggggggg_def
-#define Template_qggggggg_def
+#ifndef Template_qggggggd_def
+#define Template_qggggggd_def
 ETW_INLINE
 ULONG
-Template_qggggggg(
+Template_qggggggd(
     _In_ REGHANDLE RegHandle,
     _In_ PCEVENT_DESCRIPTOR Descriptor,
     _In_ const unsigned int  _Arg0,
@@ -2161,12 +2494,12 @@ Template_qggggggg(
     _In_ const double  _Arg4,
     _In_ const double  _Arg5,
     _In_ const double  _Arg6,
-    _In_ const double  _Arg7
+    _In_ const signed int  _Arg7
     )
 {
-#define ARGUMENT_COUNT_qggggggg 8
+#define ARGUMENT_COUNT_qggggggd 8
 
-    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_qggggggg];
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_qggggggd];
 
     EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const unsigned int)  );
 
@@ -2182,20 +2515,20 @@ Template_qggggggg(
 
     EventDataDescCreate(&EventData[6], &_Arg6, sizeof(const double)  );
 
-    EventDataDescCreate(&EventData[7], &_Arg7, sizeof(const double)  );
+    EventDataDescCreate(&EventData[7], &_Arg7, sizeof(const signed int)  );
 
-    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_qggggggg, EventData);
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_qggggggd, EventData);
 }
 #endif
 
 //
 //Template from manifest : HardwareInfoTemplate
 //
-#ifndef Template_qqhhhhhhqtttthhhhdF2F2F2_def
-#define Template_qqhhhhhhqtttthhhhdF2F2F2_def
+#ifndef Template_qqhhhhhhqtttthhhh_def
+#define Template_qqhhhhhhqtttthhhh_def
 ETW_INLINE
 ULONG
-Template_qqhhhhhhqtttthhhhdF2F2F2(
+Template_qqhhhhhhqtttthhhh(
     _In_ REGHANDLE RegHandle,
     _In_ PCEVENT_DESCRIPTOR Descriptor,
     _In_ const unsigned int  _Arg0,
@@ -2214,16 +2547,12 @@ Template_qqhhhhhhqtttthhhhdF2F2F2(
     _In_ const unsigned short  _Arg13,
     _In_ const unsigned short  _Arg14,
     _In_ const unsigned short  _Arg15,
-    _In_ const unsigned short  _Arg16,
-    _In_ const signed int  _Arg17,
-    _In_reads_(2) const float *_Arg18,
-    _In_reads_(2) const float *_Arg19,
-    _In_reads_(2) const float *_Arg20
+    _In_ const unsigned short  _Arg16
     )
 {
-#define ARGUMENT_COUNT_qqhhhhhhqtttthhhhdF2F2F2 21
+#define ARGUMENT_COUNT_qqhhhhhhqtttthhhh 17
 
-    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_qqhhhhhhqtttthhhhdF2F2F2];
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_qqhhhhhhqtttthhhh];
 
     EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const unsigned int)  );
 
@@ -2259,15 +2588,158 @@ Template_qqhhhhhhqtttthhhhdF2F2F2(
 
     EventDataDescCreate(&EventData[16], &_Arg16, sizeof(const unsigned short)  );
 
-    EventDataDescCreate(&EventData[17], &_Arg17, sizeof(const signed int)  );
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_qqhhhhhhqtttthhhh, EventData);
+}
+#endif
 
-    EventDataDescCreate(&EventData[18],  _Arg18, sizeof(const float)*2);
+//
+//Template from manifest : VirtualDisplayPacket_etw
+//
+#ifndef Template_xdxx_def
+#define Template_xdxx_def
+ETW_INLINE
+ULONG
+Template_xdxx(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ unsigned __int64  _Arg0,
+    _In_ const signed int  _Arg1,
+    _In_ unsigned __int64  _Arg2,
+    _In_ unsigned __int64  _Arg3
+    )
+{
+#define ARGUMENT_COUNT_xdxx 4
 
-    EventDataDescCreate(&EventData[19],  _Arg19, sizeof(const float)*2);
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_xdxx];
 
-    EventDataDescCreate(&EventData[20],  _Arg20, sizeof(const float)*2);
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(unsigned __int64)  );
 
-    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_qqhhhhhhqtttthhhhdF2F2F2, EventData);
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(const signed int)  );
+
+    EventDataDescCreate(&EventData[2], &_Arg2, sizeof(unsigned __int64)  );
+
+    EventDataDescCreate(&EventData[3], &_Arg3, sizeof(unsigned __int64)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_xdxx, EventData);
+}
+#endif
+
+//
+//Template from manifest : ClientMissedFrame
+//
+#ifndef Template_xx_def
+#define Template_xx_def
+ETW_INLINE
+ULONG
+Template_xx(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ unsigned __int64  _Arg0,
+    _In_ unsigned __int64  _Arg1
+    )
+{
+#define ARGUMENT_COUNT_xx 2
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_xx];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(unsigned __int64)  );
+
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(unsigned __int64)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_xx, EventData);
+}
+#endif
+
+//
+//Template from manifest : CompositionBegin
+//
+#ifndef Template_gg_def
+#define Template_gg_def
+ETW_INLINE
+ULONG
+Template_gg(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const double  _Arg0,
+    _In_ const double  _Arg1
+    )
+{
+#define ARGUMENT_COUNT_gg 2
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_gg];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const double)  );
+
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(const double)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_gg, EventData);
+}
+#endif
+
+//
+//Template from manifest : (null)
+//
+#ifndef TemplateEventDescriptor_def
+#define TemplateEventDescriptor_def
+
+
+ETW_INLINE
+ULONG
+TemplateEventDescriptor(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor
+    )
+{
+    return EventWrite(RegHandle, Descriptor, 0, NULL);
+}
+#endif
+
+//
+//Template from manifest : RenderPacketTrace
+//
+#ifndef Template_qx_def
+#define Template_qx_def
+ETW_INLINE
+ULONG
+Template_qx(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const unsigned int  _Arg0,
+    _In_ unsigned __int64  _Arg1
+    )
+{
+#define ARGUMENT_COUNT_qx 2
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_qx];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const unsigned int)  );
+
+    EventDataDescCreate(&EventData[1], &_Arg1, sizeof(unsigned __int64)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_qx, EventData);
+}
+#endif
+
+//
+//Template from manifest : DistortionEndToEndTiming
+//
+#ifndef Template_g_def
+#define Template_g_def
+ETW_INLINE
+ULONG
+Template_g(
+    _In_ REGHANDLE RegHandle,
+    _In_ PCEVENT_DESCRIPTOR Descriptor,
+    _In_ const double  _Arg0
+    )
+{
+#define ARGUMENT_COUNT_g 1
+
+    EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_g];
+
+    EventDataDescCreate(&EventData[0], &_Arg0, sizeof(const double)  );
+
+    return EventWrite(RegHandle, Descriptor, ARGUMENT_COUNT_g, EventData);
 }
 #endif
 
@@ -2287,6 +2759,7 @@ Template_qqhhhhhhqtttthhhhdF2F2F2(
 #define MSG_OVR_SDK_LibOVR_opcode_HMD_DESC_message 0x30000011L
 #define MSG_OVR_SDK_LibOVR_opcode_CAM_RECEIVE_message 0x30000012L
 #define MSG_OVR_SDK_LibOVR_opcode_CAM_REQUEST_message 0x30000013L
+#define MSG_level_LogAlways                  0x50000000L
 #define MSG_level_Error                      0x50000002L
 #define MSG_level_Informational              0x50000004L
 #define MSG_level_Verbose                    0x50000005L
@@ -2296,7 +2769,10 @@ Template_qqhhhhhhqtttthhhhdF2F2F2(
 #define MSG_OVR_SDK_LibOVR_task_CAMERA_TRACE_message 0x70000004L
 #define MSG_OVR_SDK_LibOVR_task_LOG_TRACE_message 0x70000005L
 #define MSG_OVR_SDK_LibOVR_task_SUBMITFRAME_TRACE_message 0x70000006L
-#define MSG_OVR_SDK_LibOVR_task_SENSOR_TRACE_message 0x70000007L
+#define MSG_OVR_SDK_LibOVR_task_PHASESYNC_TRACE_message 0x70000007L
+#define MSG_OVR_SDK_LibOVR_task_SENSOR_TRACE_message 0x70000008L
+#define MSG_OVR_SDK_LibOVR_task_VIRTUALDISPLAY_TRACE_message 0x70000009L
+#define MSG_OVR_SDK_LibOVR_task_Compositor_RunLoop_message 0x7000000AL
 #define MSG_OVR_SDK_LibOVR_event_0_message   0xB0000000L
 #define MSG_OVR_SDK_LibOVR_event_1_message   0xB0000001L
 #define MSG_OVR_SDK_LibOVR_event_2_message   0xB0000002L
@@ -2340,3 +2816,16 @@ Template_qqhhhhhhqtttthhhhdF2F2F2(
 #define MSG_OVR_SDK_LibOVR_event_41_message  0xB0000029L
 #define MSG_OVR_SDK_LibOVR_event_42_message  0xB000002AL
 #define MSG_OVR_SDK_LibOVR_event_43_message  0xB000002BL
+#define MSG_OVR_SDK_LibOVR_event_44_message  0xB000002CL
+#define MSG_OVR_SDK_LibOVR_event_45_message  0xB000002DL
+#define MSG_OVR_SDK_LibOVR_event_46_message  0xB000002EL
+#define MSG_OVR_SDK_LibOVR_event_47_message  0xB000002FL
+#define MSG_OVR_SDK_LibOVR_event_48_message  0xB0000030L
+#define MSG_OVR_SDK_LibOVR_event_49_message  0xB0000031L
+#define MSG_OVR_SDK_LibOVR_event_51_message  0xB0000033L
+#define MSG_OVR_SDK_LibOVR_event_52_message  0xB0000034L
+#define MSG_OVR_SDK_LibOVR_event_53_message  0xB0000035L
+#define MSG_OVR_SDK_LibOVR_event_54_message  0xB0000036L
+#define MSG_OVR_SDK_LibOVR_event_55_message  0xB0000037L
+#define MSG_OVR_SDK_LibOVR_event_56_message  0xB0000038L
+#define MSG_OVR_SDK_LibOVR_event_57_message  0xB0000039L

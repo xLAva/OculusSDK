@@ -1,22 +1,21 @@
 /************************************************************************************
 
-PublicHeader:   OVR_Kernel.h
 Filename    :   OVR_String.h
 Content     :   String UTF8 string implementation with copy-on-write semantics
                 (thread-safe for assignment but not modification).
 Created     :   September 19, 2012
 Notes       : 
 
-Copyright   :   Copyright 2014 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
 
-Licensed under the Oculus VR Rift SDK License Version 3.2 (the "License"); 
+Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
 which is provided at the time of installation or download, or which 
 otherwise accompanies this software in either electronic or hard copy form.
 
 You may obtain a copy of the License at
 
-http://www.oculusvr.com/licenses/LICENSE-3.2 
+http://www.oculusvr.com/licenses/LICENSE-3.3 
 
 Unless required by applicable law or agreed to in writing, the Oculus VR SDK 
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +38,11 @@ limitations under the License.
 
 
 namespace OVR {
+
+// Special/default null-terminated length argument
+const size_t StringIsNullTerminated = size_t(-1);
+// Input index out of bounds error condition
+const size_t StringIndexOutOfBounds = size_t(-1);
 
 // ***** Classes
 
@@ -72,6 +76,8 @@ protected:
         // are ascii, may not be equal to number of chars in case string data is UTF8.
         size_t  Size;       
         AtomicInt<int32_t> RefCount;
+        // Note: Data[] must be the last data element, and the [1] accounts for
+        // null-termination in allocations
         char    Data[1];
 
         void    AddRef()
@@ -94,7 +100,7 @@ protected:
                 OVR_FREE(this);
         }
 
-        static size_t GetLengthFlagBit()     { return size_t(1) << Flag_LengthIsSizeShift; }
+        static size_t GetLengthFlagBit()    { return size_t(1) << Flag_LengthIsSizeShift; }
         size_t      GetSize() const         { return Size & ~GetLengthFlagBit() ; }
         size_t      GetLengthFlag()  const  { return Size & GetLengthFlagBit(); }
         bool        LengthIsSize() const    { return GetLengthFlag() != 0; }
@@ -200,13 +206,15 @@ public:
     uint32_t    GetCharAt(size_t index) const;
     uint32_t    GetFirstCharAt(size_t index, const char** offset) const;
     uint32_t    GetNextChar(const char** offset) const;
+    uint32_t    Front() const { return GetCharAt(0); } 
+    uint32_t    Back() const { return GetCharAt(GetSize() - 1); } 
 
     // Appends a character
     void        AppendChar(uint32_t ch);
 
     // Append a string
-    void        AppendString(const wchar_t* pstr, intptr_t len = -1);
-    void        AppendString(const char* putf8str, intptr_t utf8StrSz = -1);
+    void        AppendString(const wchar_t* pstr, size_t len = StringIsNullTerminated);
+    void        AppendString(const char* putf8str, size_t utf8StrSz = StringIsNullTerminated);
 
     // Assigned a string with dynamic data (copied through initializer).
     void        AssignString(const InitStruct& src, size_t size);
@@ -216,35 +224,40 @@ public:
     //  Resize the string to the new size
 //  void        Resize(size_t _size);
 
-    // Removes the character at posAt
-    void        Remove(size_t posAt, intptr_t len = 1);
+    // Removes the character(s) at posAt
+    void        Remove(size_t posAt, size_t len = 1);
+
+    // Same as std::string::pop_back()
+    void        PopBack() { Remove(GetSize() - 1, 1); }
 
     // Returns a String that's a substring of this.
     //  -start is the index of the first UTF8 character you want to include.
     //  -end is the index one past the last UTF8 character you want to include.
-    String   Substring(size_t start, size_t end) const;
+    String      Substring(size_t start, size_t end) const;
 
     // Case-conversion
-    String   ToUpper() const;
-    String   ToLower() const;
+    String      ToUpper() const;
+    String      ToLower() const;
 
     // Inserts substr at posAt
-    String&    Insert (const char* substr, size_t posAt, intptr_t len = -1);
+    String&     Insert(const char* substr, size_t posAt, size_t len = StringIsNullTerminated);
 
     // Inserts character at posAt
     size_t      InsertCharAt(uint32_t c, size_t posAt);
 
-    // Inserts substr at posAt, which is an index of a character (not byte).
-    // Of size is specified, it is in bytes.
-//  String&    Insert(const uint32_t* substr, size_t posAt, intptr_t size = -1);
-
-    // Get Byte index of the character at position = index
+    // Get Byte index of the character at position = index, returns StringIndexOutOfBounds on index out of bounds
     size_t      GetByteIndex(size_t index) const { return (size_t)UTF8Util::GetByteIndex(index, GetData()->Data); }
 
     // Utility: case-insensitive string compare.  stricmp() & strnicmp() are not
     // ANSI or POSIX, do not seem to appear in Linux.
-    static int OVR_STDCALL   CompareNoCase(const char* a, const char* b);
-    static int OVR_STDCALL   CompareNoCase(const char* a, const char* b, intptr_t len);
+    static int OVR_STDCALL CompareNoCase(const char* a, const char* b)
+    {
+        return OVR_stricmp(a, b);
+    }
+    static int OVR_STDCALL CompareNoCase(const char* a, const char* b, size_t len)
+    {
+        return OVR_strnicmp(a, b, len);
+    }
 
     // Hash function, case-insensitive
     static size_t OVR_STDCALL BernsteinHashFunctionCIS(const void* pdataIn, size_t size, size_t seed = 5381);
@@ -455,7 +468,8 @@ public:
     uint32_t    GetCharAt(size_t index) const;
     uint32_t    GetFirstCharAt(size_t index, const char** offset) const;
     uint32_t    GetNextChar(const char** offset) const;
-
+    uint32_t    Front() const { return GetCharAt(0); } 
+    uint32_t    Back() const { return GetCharAt(GetSize() - 1); } 
 
     //  Resize the string to the new size
     void        Resize(size_t _size);
@@ -465,8 +479,8 @@ public:
     void        AppendChar(uint32_t ch);
 
     // Append a string
-    void        AppendString(const wchar_t* pstr, intptr_t len = -1);
-    void        AppendString(const char* putf8str, intptr_t utf8StrSz = -1);
+    void        AppendString(const wchar_t* pstr, size_t len = StringIsNullTerminated);
+    void        AppendString(const char* putf8str, size_t utf8StrSz = StringIsNullTerminated);
     void        AppendFormatV(const char* format, va_list argList);
     void        AppendFormat(const char* format, ...);
 
@@ -474,7 +488,7 @@ public:
     //void        AssignString(const InitStruct& src, size_t size);
 
     // Inserts substr at posAt
-    void        Insert (const char* substr, size_t posAt, intptr_t len = -1);
+    void        Insert (const char* substr, size_t posAt, size_t len = StringIsNullTerminated);
     // Inserts character at posAt
     size_t      InsertCharAt(uint32_t c, size_t posAt);
 
@@ -493,22 +507,12 @@ public:
     //String   operator +  (const String& src)  const ;
 
     // Accesses raw bytes
-    char&       operator [] (int index)
-    {
-        OVR_ASSERT(((size_t)index) < GetSize());
-        return pData[index];
-    }
     char&       operator [] (size_t index)
     {
         OVR_ASSERT(index < GetSize());
         return pData[index];
     }
 
-    const char&     operator [] (int index) const 
-    {
-        OVR_ASSERT(((size_t)index) < GetSize());
-        return pData[index];
-    }
     const char&     operator [] (size_t index) const
     {
         OVR_ASSERT(index < GetSize());
@@ -662,14 +666,14 @@ protected:
 
 
 
-// Convert a UTF8 OVR::String object to a wchar_t UCS (Unicode) std::basic_string object.
+// Convert a UTF8 String object to a wchar_t UCS (Unicode) std::basic_string object.
 // The C++11 Standard Library has similar functionality, but it's not supported by earlier 
 // versions of Visual Studio. To consider: Add support for this when available.
 // length is the strlen of pUTF8. If not specified then it is calculated automatically.
 // Returns an empty string in the case that the UTF8 is malformed.
-std::wstring UTF8StringToUCSString(const char* pUTF8, size_t length = (size_t)-1);
+std::wstring UTF8StringToUCSString(const char* pUTF8, size_t length = StringIsNullTerminated);
 std::wstring UTF8StringToUCSString(const std::string& sUTF8);
-std::wstring OVRStringToUCSString(const OVR::String& sOVRUTF8);
+std::wstring OVRStringToUCSString(const String& sOVRUTF8);
 
 
 // Convert a wchar_t UCS (Unicode) std::basic_string object to a UTF8 std::basic_string object.
@@ -677,12 +681,10 @@ std::wstring OVRStringToUCSString(const OVR::String& sOVRUTF8);
 // versions of Visual Studio. To consider: Add support for this when available.
 // length is the strlen of pUCS. If not specified then it is calculated automatically.
 // Returns an empty string in the case that the UTF8 is malformed.
-std::string UCSStringToUTF8String(const wchar_t* pUCS, size_t length = (size_t)-1);
+std::string UCSStringToUTF8String(const wchar_t* pUCS, size_t length = StringIsNullTerminated);
 std::string UCSStringToUTF8String(const std::wstring& sUCS);
-OVR::String UCSStringToOVRString(const wchar_t* pUCS, size_t length = (size_t)-1);
-OVR::String UCSStringToOVRString(const std::wstring& sUCS);
-
-
+String UCSStringToOVRString(const wchar_t* pUCS, size_t length = StringIsNullTerminated);
+String UCSStringToOVRString(const std::wstring& sUCS);
 
 } // OVR
 

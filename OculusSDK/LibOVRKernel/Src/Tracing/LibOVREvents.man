@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <instrumentationManifest xsi:schemaLocation="http://schemas.microsoft.com/win/2004/08/events eventman.xsd" xmlns="http://schemas.microsoft.com/win/2004/08/events" xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:trace="http://schemas.microsoft.com/win/2004/08/events/trace">
 	<instrumentation>
 		<events>
@@ -84,23 +84,51 @@
 					</event>
 					<event symbol="HmdDisplay" value="34" version="0" channel="LibOVR/Analytic" level="win:Informational" task="HmdInfo" opcode="HmdDesc" template="HmdDisplay" message="$(string.OVR-SDK-LibOVR.event.34.message)">
 					</event>
-					<event symbol="VSync" value="35" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Distort" opcode="Present" template="RecordedVSync" message="$(string.OVR-SDK-LibOVR.event.35.message)">
+					<event symbol="PhaseSyncBegin" value="35" version="0" channel="LibOVR/Analytic" level="win:Informational" task="PhaseSync" opcode="Begin" template="PhaseSyncBegin" message="$(string.OVR-SDK-LibOVR.event.35.message)">
 					</event>
-					<event symbol="AppCompositorFocus" value="36" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.36.message)">
+					<event symbol="PhaseSyncEnd" value="36" version="0" channel="LibOVR/Analytic" level="win:Informational" task="PhaseSync" opcode="End" template="PhaseSyncEnd" message="$(string.OVR-SDK-LibOVR.event.36.message)">
 					</event>
-					<event symbol="AppConnect" value="37" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.37.message)">
+					<event symbol="VSync" value="37" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Distort" opcode="Present" template="RecordedVSync" message="$(string.OVR-SDK-LibOVR.event.37.message)">
 					</event>
-					<event symbol="AppDisconnect" value="38" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.38.message)">
+					<event symbol="AppCompositorFocus" value="38" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.38.message)">
 					</event>
-					<event symbol="AppNoOp" value="39" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.39.message)">
+					<event symbol="AppConnect" value="39" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.39.message)">
 					</event>
-					<event symbol="PosePrediction" value="40" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Sensor" opcode="Begin" template="PosePrediction" message="$(string.OVR-SDK-LibOVR.event.40.message)">
+					<event symbol="AppDisconnect" value="40" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.40.message)">
 					</event>
-					<event symbol="LatencyTiming" value="41" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="LatencyTiming" message="$(string.OVR-SDK-LibOVR.event.41.message)">
+					<event symbol="AppNoOp" value="41" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="AppEvent" message="$(string.OVR-SDK-LibOVR.event.41.message)">
 					</event>
-					<event symbol="EndFrameAppTiming" value="42" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="EndFrameAppTiming" message="$(string.OVR-SDK-LibOVR.event.42.message)">
+					<event symbol="PosePrediction" value="42" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Sensor" opcode="Begin" template="PosePrediction" message="$(string.OVR-SDK-LibOVR.event.42.message)">
 					</event>
-					<event symbol="HardwareInfo" value="43" version="0" channel="LibOVR/Analytic" level="win:Informational" template="HardwareInfoTemplate" message="$(string.OVR-SDK-LibOVR.event.43.message)">
+					<event symbol="LatencyTiming" value="43" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="LatencyTiming" message="$(string.OVR-SDK-LibOVR.event.43.message)">
+					</event>
+					<event symbol="EndFrameAppTiming" value="44" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Waypoint" template="EndFrameAppTiming" message="$(string.OVR-SDK-LibOVR.event.44.message)">
+					</event>
+					<event symbol="HardwareInfo" value="45" version="0" channel="LibOVR/Analytic" level="win:Informational" template="HardwareInfoTemplate" message="$(string.OVR-SDK-LibOVR.event.45.message)">
+					</event>
+					<event symbol="VirtualDisplayPacketTrace" value="46" version="0" channel="LibOVR/Analytic" level="win:Informational" task="VirtualDisplay" opcode="Waypoint" template="VirtualDisplayPacket_etw" message="$(string.OVR-SDK-LibOVR.event.46.message)">
+					</event>
+					<event symbol="ClientFrameMissed" value="47" version="0" channel="LibOVR/Analytic" level="win:Informational" task="VirtualDisplay" opcode="Waypoint" template="ClientMissedFrame" message="$(string.OVR-SDK-LibOVR.event.47.message)">
+					</event>
+					<event symbol="CompositionBegin" value="48" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="Begin" template="CompositionBegin" message="$(string.OVR-SDK-LibOVR.event.48.message)">
+					</event>
+					<event symbol="CompositionEnd" value="49" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="End" message="$(string.OVR-SDK-LibOVR.event.49.message)">
+					</event>
+					<event symbol="RenderPacketProcessEvent" value="50" version="0" channel="LibOVR/Analytic" level="win:Informational" task="VirtualDisplay" opcode="Waypoint" template="RenderPacketTrace">
+					</event>
+					<event symbol="EndFrameOrigAppTiming" value="51" version="0" channel="LibOVR/Analytic" level="win:Informational" task="Log" opcode="Begin" template="EndFrameAppTiming" message="$(string.OVR-SDK-LibOVR.event.51.message)">
+					</event>
+					<event symbol="DistortionEndToEndTiming" value="52" version="0" channel="LibOVR/Analytic" level="win:LogAlways" task="CompositorRunLoop" opcode="Call" template="DistortionEndToEndTiming" message="$(string.OVR-SDK-LibOVR.event.52.message)">
+					</event>
+					<event symbol="CompositionEndSpinWait" value="53" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="End" message="$(string.OVR-SDK-LibOVR.event.53.message)">
+					</event>
+					<event symbol="CompositionFlushingToGPU" value="54" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="Waypoint" message="$(string.OVR-SDK-LibOVR.event.54.message)">
+					</event>
+					<event symbol="PhaseSyncGPUCompleted" value="55" version="0" channel="LibOVR/Analytic" level="win:Informational" task="PhaseSync" opcode="Waypoint" template="PhaseSyncAppGPUEndTime" message="$(string.OVR-SDK-LibOVR.event.55.message)">
+					</event>
+					<event symbol="CompositionMissedCompositorFrame" value="56" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="Waypoint" message="$(string.OVR-SDK-LibOVR.event.56.message)">
+					</event>
+					<event symbol="CompositionGPUStartTime" value="57" version="0" channel="LibOVR/Analytic" level="win:Informational" task="CompositorRunLoop" opcode="Waypoint" template="CompositionGPUBeginTime" message="$(string.OVR-SDK-LibOVR.event.57.message)">
 					</event>
 				</events>
 				<levels>
@@ -118,7 +146,13 @@
 					</task>
 					<task name="SubmitFrame" symbol="SUBMITFRAME_TRACE" value="6" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.SUBMITFRAME_TRACE.message)">
 					</task>
-					<task name="Sensor" symbol="SENSOR_TRACE" value="7" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.SENSOR_TRACE.message)">
+					<task name="PhaseSync" symbol="PHASESYNC_TRACE" value="7" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.PHASESYNC_TRACE.message)">
+					</task>
+					<task name="Sensor" symbol="SENSOR_TRACE" value="8" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.SENSOR_TRACE.message)">
+					</task>
+					<task name="VirtualDisplay" symbol="VIRTUALDISPLAY_TRACE" value="9" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.VIRTUALDISPLAY_TRACE.message)">
+					</task>
+					<task name="CompositorRunLoop" symbol="COMPOSITOR_RUNLOOP_TRACE" value="10" eventGUID="{00000000-0000-0000-0000-000000000000}" message="$(string.OVR-SDK-LibOVR.task.Compositor_RunLoop.message)">
 					</task>
 				</tasks>
 				<opcodes>
@@ -285,19 +319,7 @@
 						</data>
 						<data name="CameraPoseTranslation" inType="win:Float" outType="xs:float" count="3">
 						</data>
-						<data name="SensorAccelerometer" inType="win:Float" outType="xs:float" count="3">
-						</data>
-						<data name="SensorGyro" inType="win:Float" outType="xs:float" count="3">
-						</data>
-						<data name="SensorMagnetometer" inType="win:Float" outType="xs:float" count="3">
-						</data>
-						<data name="SensorTemperature" inType="win:Float" outType="xs:float">
-						</data>
-						<data name="SensortTimeInSeconds" inType="win:Float" outType="xs:float">
-						</data>
 						<data name="StatusFlags" inType="win:UInt32" outType="xs:unsignedInt">
-						</data>
-						<data name="LastCameraFrameCounter" inType="win:UInt32" outType="xs:unsignedInt">
 						</data>
 					</template>
 					<template tid="CameraBlobs_v0">
@@ -466,6 +488,68 @@
 						<data name="TimeToScanlineLast" inType="win:Float" outType="xs:float">
 						</data>
 					</template>
+					<template tid="PhaseSyncBegin">
+						<data name="LastCompositeTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="LastVSyncTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="FrameIntervalMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SemaphoreMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SleepMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SpinMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="PhaseSyncMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="BeginFrameTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="TargetCompletionTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="TargetCompositeTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="TargetVSyncTime" inType="win:Double" outType="xs:double">
+						</data>
+					</template>
+					<template tid="PhaseSyncEnd">
+						<data name="BeginFrameTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="EndFrameTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="CompletionTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="CompositeTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="VSyncTime" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="FrameTimeMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="FrameTimeCpuMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="FrameTimeVarianceMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="QueueAhead" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="FramesMissed" inType="win:UInt32" outType="xs:unsignedInt">
+						</data>
+						<data name="AvgFrameTimeMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="AvgFrameTimeCpuMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="AvgFrameTimeVarianceMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="AvgQueueAhead" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SyncFrameTimeMS" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SyncQueueAhead" inType="win:Float" outType="xs:float">
+						</data>
+						<data name="SyncFramesMissed" inType="win:UInt32" outType="xs:unsignedInt">
+						</data>
+						<data name="PhaseSyncMS" inType="win:Float" outType="xs:float">
+						</data>
+					</template>
 					<template tid="RecordedVSync">
 						<data name="Time" inType="win:Double" outType="xs:double">
 						</data>
@@ -529,7 +613,7 @@
 						</data>
 						<data name="QueueAheadSeconds" inType="win:Double" outType="xs:double">
 						</data>
-						<data name="DistortionGpuDuration" inType="win:Double" outType="xs:double">
+						<data name="RenderCount" inType="win:Int32" outType="xs:int">
 						</data>
 					</template>
 					<template tid="HardwareInfoTemplate">
@@ -567,13 +651,45 @@
 						</data>
 						<data name="TotalRows" inType="win:UInt16" outType="xs:unsignedShort">
 						</data>
-						<data name="CameraCount" inType="win:Int32" outType="xs:int">
+					</template>
+					<template tid="VirtualDisplayPacket_etw">
+						<data name="PacketType" inType="win:UInt64" outType="xs:unsignedLong">
 						</data>
-						<data name="TrackerSensorDieTemp" inType="win:Float" outType="xs:float" count="2">
+						<data name="Stage" inType="win:Int32" outType="xs:int">
 						</data>
-						<data name="TrackerEtronTemp" inType="win:Float" outType="xs:float" count="2">
+						<data name="SubmittingProcessID" inType="win:UInt64" outType="xs:unsignedLong">
 						</data>
-						<data name="TrackerCCMTemp" inType="win:Float" outType="xs:float" count="2">
+						<data name="ActiveProcessID" inType="win:UInt64" outType="xs:unsignedLong">
+						</data>
+					</template>
+					<template tid="ClientMissedFrame">
+						<data name="FrameIndex" inType="win:UInt64" outType="xs:unsignedLong">
+						</data>
+						<data name="ProcessID" inType="win:UInt64" outType="xs:unsignedLong">
+						</data>
+					</template>
+					<template tid="RenderPacketTrace">
+						<data name="Stage" inType="win:UInt32" outType="xs:unsignedInt">
+						</data>
+						<data name="ProcessID" inType="win:UInt64" outType="xs:unsignedLong">
+						</data>
+					</template>
+					<template tid="DistortionEndToEndTiming">
+						<data name="ElapsedMs" inType="win:Double" outType="xs:double">
+						</data>
+					</template>
+					<template tid="CompositionBegin">
+						<data name="ExpectedCPUStartTimeInSeconds" inType="win:Double" outType="xs:double">
+						</data>
+						<data name="ActualCPUStartTimeInSeconds" inType="win:Double" outType="xs:double">
+						</data>
+					</template>
+					<template tid="CompositionGPUBeginTime">
+						<data name="DistortionBeginTimeInSeconds" inType="win:Double" outType="xs:double">
+						</data>
+					</template>
+					<template tid="PhaseSyncAppGPUEndTime">
+						<data name="AppGPUEndTimeSeconds" inType="win:Double" outType="xs:double">
 						</data>
 					</template>
 				</templates>
@@ -587,13 +703,19 @@
 				</string>
 				<string id="level.Verbose" value="Verbose">
 				</string>
+				<string id="level.LogAlways" value="Log Always">
+				</string>
 				<string id="level.Informational" value="Information">
 				</string>
 				<string id="level.Error" value="Error">
 				</string>
+				<string id="OVR-SDK-LibOVR.task.VIRTUALDISPLAY_TRACE.message" value="VirtualDisplay">
+				</string>
 				<string id="OVR-SDK-LibOVR.task.SUBMITFRAME_TRACE.message" value="SubmitFrame">
 				</string>
 				<string id="OVR-SDK-LibOVR.task.SENSOR_TRACE.message" value="Sensor">
+				</string>
+				<string id="OVR-SDK-LibOVR.task.PHASESYNC_TRACE.message" value="PhaseSync">
 				</string>
 				<string id="OVR-SDK-LibOVR.task.LOG_TRACE.message" value="Log">
 				</string>
@@ -602,6 +724,8 @@
 				<string id="OVR-SDK-LibOVR.task.FN_TRACE.message" value="Function">
 				</string>
 				<string id="OVR-SDK-LibOVR.task.DIS_TRACE.message" value="Distort">
+				</string>
+				<string id="OVR-SDK-LibOVR.task.Compositor_RunLoop.message" value="Compositor run loop (render thread) events.">
 				</string>
 				<string id="OVR-SDK-LibOVR.task.CAMERA_TRACE.message" value="Camera">
 				</string>
@@ -633,27 +757,53 @@
 				</string>
 				<string id="OVR-SDK-LibOVR.event.6.message" value="Present distortion for %1 (frame %2)">
 				</string>
+				<string id="OVR-SDK-LibOVR.event.57.message" value="Time GPU started work (after preemption)">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.56.message" value="Compositor missed frame (glitched)">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.55.message" value="App GPU work completed.">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.54.message" value="Flushing ATW work to GPU">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.53.message" value="End of spinwait">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.52.message" value="Distortion end to end timing %1s">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.51.message" value="App EndFrame %1">
+				</string>
 				<string id="OVR-SDK-LibOVR.event.5.message" value="Wait for distortion renderer GPU for %1 (frame %2)">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.43.message" value="Hardware info">
+				<string id="OVR-SDK-LibOVR.event.49.message" value="End ATW Composition">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.42.message" value="End frame app timing">
+				<string id="OVR-SDK-LibOVR.event.48.message" value="Begin ATW Composition">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.41.message" value="Latency Timing">
+				<string id="OVR-SDK-LibOVR.event.47.message" value="Client Missed Frame %1">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.40.message" value="PosePrediction">
+				<string id="OVR-SDK-LibOVR.event.46.message" value="Virtual Display Packet %1">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.45.message" value="Hardware info">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.44.message" value="End frame app timing">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.43.message" value="Latency Timing">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.42.message" value="PosePrediction">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.41.message" value="Testing only. Should not see in production.">
+				</string>
+				<string id="OVR-SDK-LibOVR.event.40.message" value="Application Disconnected">
 				</string>
 				<string id="OVR-SDK-LibOVR.event.4.message" value="Begin distortion rendering for %1 (frame %2)">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.39.message" value="Testing only. Should not see in production.">
+				<string id="OVR-SDK-LibOVR.event.39.message" value="Application Connected">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.38.message" value="Application Disconnected">
+				<string id="OVR-SDK-LibOVR.event.38.message" value="Application compositor focus">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.37.message" value="Application Connected">
+				<string id="OVR-SDK-LibOVR.event.37.message" value="VSync Service QPC">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.36.message" value="Application compositor focus">
+				<string id="OVR-SDK-LibOVR.event.36.message" value="PhaseSyncEnd">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.35.message" value="VSync Service QPC">
+				<string id="OVR-SDK-LibOVR.event.35.message" value="PhaseSyncBegin">
 				</string>
 				<string id="OVR-SDK-LibOVR.event.34.message" value="Hmd Display %4 %5">
 				</string>
@@ -689,7 +839,7 @@
 				</string>
 				<string id="OVR-SDK-LibOVR.event.19.message" value="Blobs %1">
 				</string>
-				<string id="OVR-SDK-LibOVR.event.18.message" value="Tracking State %14">
+				<string id="OVR-SDK-LibOVR.event.18.message" value="Tracking State">
 				</string>
 				<string id="OVR-SDK-LibOVR.event.17.message" value="Error: %1">
 				</string>
