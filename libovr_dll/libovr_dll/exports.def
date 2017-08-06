@@ -45,3 +45,4 @@ EXPORTS
    ovr_GetTextureSwapChainCurrentIndex
    ovr_GetTextureSwapChainDesc
    ovr_CommitTextureSwapChain
+   ovr_GetAudioDeviceOutGuidStr
