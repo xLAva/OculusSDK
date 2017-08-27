@@ -34,6 +34,7 @@ EXPORTS
    ovrTimewarpProjectionDesc_FromProjection
    ovrMatrix4f_OrthoSubProjection
    ovr_CalcEyePoses
+   ovr_CalcEyePoses2
    ovr_GetEyePoses
    ovr_DestroyTextureSwapChain
    ovr_DestroyMirrorTexture
