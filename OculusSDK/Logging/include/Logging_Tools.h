@@ -65,36 +65,49 @@ limitations under the License.
         #define NOMINMAX
     #endif
 
-    // We support Windows Windows 7 or newer.
-    #ifndef _WIN32_WINNT
-        #define _WIN32_WINNT 0x0601 /* Windows 7+ */
-    #endif
-
 #define WIN
     #include <windows.h>
 #endif
 
-    #ifdef DID_DEFINE_WINSOCKAPI
-        #undef _WINSOCKAPI_
-        #undef DID_DEFINE_WINSOCKAPI
-    #endif
+// Work around some broken Windows headers:
+#ifdef DID_DEFINE_WINSOCKAPI
+    #undef _WINSOCKAPI_
+    #undef DID_DEFINE_WINSOCKAPI
+#endif
 
-#if defined(_MSC_VER) && defined(LOGGING_DEBUG)
-    #include <intrin.h>
-    #define LOGGING_DEBUG_BREAK() __debugbreak()
+#if defined(LOGGING_DEBUG)
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+        #define LOGGING_DEBUG_BREAK() __debugbreak()
+    #else
+        #define LOGGING_DEBUG_BREAK() { __asm__("int $3\n" : : ); }
+    #endif
 #else
     #define LOGGING_DEBUG_BREAK()
 #endif
 
+
+
 #include <atomic>
+#include <mutex>
+
 
 namespace ovrlog {
+
+
+#if defined(_WIN32)
+    typedef HANDLE OvrLogHandle;
+#else
+    typedef void* OvrLogHandle; // To do: This probably isn't the right thing to do.
+#endif
+    
 
 
 //-----------------------------------------------------------------------------
 // Lock
 //
 // Critical section wrapper.
+//
 class Lock
 {
 public:
@@ -107,16 +120,13 @@ public:
     void Enter();
     void Leave();
 
-#if defined(LOGGING_DEBUG)
-    void SetLimit(double limit) { LimitTime = limit; }
-#endif
-
 private:
-#if defined(LOGGING_DEBUG)
-    double LockStartTime;
-    double LimitTime;
-#endif
+#if defined(_WIN32)
+    // Until the behavior of std::recursive_mutex is vetted, we use CRITICAL_SECTION on Windows.
     CRITICAL_SECTION cs;
+#else
+    std::recursive_mutex m;    
+#endif
 };
 
 
@@ -124,6 +134,8 @@ private:
 // Locker
 //
 // Scoped lock wrapper.
+// To do: Replace this class with direct std::lock usage.
+//
 class Locker
 {
 public:
@@ -155,12 +167,12 @@ private:
 class AutoHandle
 {
 public:
-    AutoHandle(HANDLE handle = nullptr);
+    AutoHandle(OvrLogHandle handle = nullptr);
     ~AutoHandle();
 
-    void operator=(HANDLE handle);
+    void operator=(OvrLogHandle handle);
 
-    HANDLE Get() const
+    OvrLogHandle Get() const
     {
         return TheHandle;
     }
@@ -173,7 +185,7 @@ public:
     void Clear();
 
 protected:
-    HANDLE TheHandle;
+    OvrLogHandle TheHandle;
 };
 
 
@@ -185,6 +197,12 @@ protected:
 class Terminator
 {
 public:
+    #if defined(_WIN32)
+        #define TimeoutMillisecondsInfinite INFINITE // Happens to be 0xffffffff
+    #else
+        #define TimeoutMillisecondsInfinite 0xffffffff
+    #endif
+    
     Terminator();
     ~Terminator();
 
@@ -199,7 +217,7 @@ public:
     // Returns true if the event signaled and false on termination or timeout.
     // Call IsTerminated() to differentiate termination from timeout.
     // Passing INFINITE for timeout will only return false on termination.
-    bool WaitOn(HANDLE hEvent, DWORD timeoutMsec = INFINITE);
+    bool WaitOn(OvrLogHandle hEvent, uint32_t timeoutMsec = TimeoutMillisecondsInfinite);
 
     // Returns true if the sleep interval exceeded or false on termination.
     bool WaitSleep(int milliseconds);
@@ -216,9 +234,13 @@ private:
 //-----------------------------------------------------------------------------
 // Time
 
-typedef unsigned long long timestamp_t;
+#if defined(_WIN32)
+    typedef unsigned long long timestamp_t;
+    static_assert(sizeof(timestamp_t) == 8, "64-bit types not supported?");
+#else
+    typedef std::chrono::high_resolution_clock::time_point::duration::rep timestamp_t;
+#endif
 
-static_assert(sizeof(timestamp_t) == 8, "64-bit types not supported?");
 
 // Get current time as a timestamp
 timestamp_t GetTimestamp();

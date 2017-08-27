@@ -24,18 +24,125 @@ limitations under the License.
 
 ************************************************************************************/
 
-#include "../include/Logging_Library.h"
-#include "../include/Logging_OutputPlugins.h"
+#include "Logging_Library.h"
+#include "Logging_OutputPlugins.h"
 
 #pragma warning(push)
 #pragma warning(disable: 4530) // C++ exception handler used, but unwind semantics are not enabled
 
 #include <time.h>
 #include <string.h>
+#include <assert.h>
 
 #pragma warning(push)
 
 namespace ovrlog {
+
+
+//-----------------------------------------------------------------------------
+// Channel
+
+OutputWorkerOutputFunctionType Channel::OutputWorkerOutputFunction;
+ConfiguratorOnChannelLevelChangeType Channel::ConfiguratorOnChannelLevelChange;
+ConfiguratorRegisterType Channel::ConfiguratorRegister;
+ConfiguratorUnregisterType Channel::ConfiguratorUnregister;
+
+// Don't use locks or register channels until OutputWorker::Start has been called
+// Once called the first time, register all known channels and start using locks
+static volatile bool OutputWorkerInstValid = false;
+static ChannelNode* ChannelNodeHead = nullptr;
+void ChannelRegisterNoLock(ChannelNode* channelNode)
+{
+    if (ChannelNodeHead)
+    {
+        ChannelNodeHead->Prev = channelNode;
+        channelNode->Next = ChannelNodeHead;
+        channelNode->Prev = nullptr;
+        ChannelNodeHead = channelNode;
+    }
+    else
+    {
+        ChannelNodeHead = channelNode;
+        channelNode->Next = nullptr;
+        channelNode->Prev = nullptr;
+    }
+}
+
+void ChannelRegister(ChannelNode* channelNode)
+{
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
+    ChannelRegisterNoLock(channelNode);
+    Configurator::GetInstance()->RestoreChannelLogLevel(channelNode);
+}
+
+void ChannelUnregisterNoLock(ChannelNode* channelNode)
+{
+    if (channelNode == ChannelNodeHead)
+    {
+        ChannelNodeHead = channelNode->Next;
+        if (ChannelNodeHead)
+        {
+            ChannelNodeHead->Prev = nullptr;
+        }
+    }
+    else
+    {
+        channelNode->Prev->Next = channelNode->Next;
+        if (channelNode->Next)
+        {
+            channelNode->Next->Prev = channelNode->Prev;
+        }
+    }
+}
+
+void ChannelUnregister(ChannelNode* channelNode)
+{
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
+
+    ChannelUnregisterNoLock(channelNode);
+}
+
+// Export Write(), and three configurator functions so that Channel has access to it automatically across DLL boundaries
+// These functions are looked up using GetProcAddress(GetModuleHandle(NULL), "FunctionName");
+extern "C"
+{
+    void OutputWorkerOutputFunctionC(const char* subsystemName, Log_Level_t messageLogLevel, const char* stream, bool relogged, Write_Option_t option)
+    {
+        OutputWorker::GetInstance()->Write(subsystemName, (Level)messageLogLevel, stream, relogged, (WriteOption)option);
+    }
+
+    void ConfiguratorOnChannelLevelChangeC(const char* channelName, Log_Level_t level)
+    {
+        Configurator::GetInstance()->OnChannelLevelChange(channelName, level);
+    }
+
+    void ConfiguratorRegisterC(ChannelNode* channelNode)
+    {
+        if (OutputWorkerInstValid == false)
+            ChannelRegisterNoLock(channelNode);
+        else
+            ChannelRegister(channelNode);
+    }
+
+    void ConfiguratorUnregisterC(ChannelNode* channelNode)
+    {
+        if (OutputWorkerInstValid == false)
+            ChannelUnregisterNoLock(channelNode);
+        else
+            ChannelUnregister(channelNode);
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Shutdown the logging system and release memory
+void ShutdownLogging()
+{
+    // This function needs to be robust to multiple calls in a row
+    if (OutputWorkerInstValid)
+    {
+        ovrlog::OutputWorker::GetInstance()->Stop();
+    }
+}
 
 
 //-----------------------------------------------------------------------------
@@ -47,52 +154,43 @@ OutputWorker* OutputWorker::GetInstance()
     return &worker;
 }
 
+void OutputWorkerAtExit()
+{
+    // This function needs to be robust to multiple calls in a row
+    ShutdownLogging();
+}
+
 OutputWorker::OutputWorker() :
     IsInDebugger(false),
     PluginsLock(),
     Plugins(),
     WorkerWakeEvent(),
     WorkQueueLock(),
-    WorkQueueHead(nullptr),
-    WorkQueueTail(nullptr),
-    WorkQueueSize(0),
     WorkQueueOverrun(0),
     StartStopLock(),
-    LoggingFromWorkerThread(false),
     WorkerTerminator(),
     LoggingThread()
 {
-    // Create a worker wake event
-    WorkerWakeEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
-
+    #if defined(_WIN32)
+        // Create a worker wake event
+        WorkerWakeEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    #else
+        // To do: Implement this.
+    #endif
+    
     IsInDebugger = IsDebuggerAttached();
 
     InstallDefaultOutputPlugins();
 
-    Start();
+    OutputWorkerInstValid = true;
 
-    if (IsInDebugger)
-    {
-        LogStringBuffer buffer("Logging", Level::Warning);
-        buffer.Stream << "Running from a debugger. Most log output will be written from a background thread. Only DbgView (MSVC Output Window) logs will be flushed immediately.";
-        Write(buffer);
-    }
+    Start();
 }
 
 OutputWorker::~OutputWorker()
 {
-    // If we were not already explicitly shutdown,
-    if (LoggingThread.IsValid())
-    {
-        // Error in user code:
-        // Before ending your main() function be sure to call
-        //   ovrlog::OutputWorker::GetInstance()->Stop();
-        // This allows the logging subsystem to finish writing before closing,
-        // as otherwise the log will be truncated and data will be lost.
-        LOGGING_DEBUG_BREAK();
-    }
-
     Stop();
+    OutputWorkerInstValid = false;
 }
 
 void OutputWorker::InstallDefaultOutputPlugins()
@@ -105,20 +203,24 @@ void OutputWorker::InstallDefaultOutputPlugins()
         // Enable event log output.  This logger is fairly slow, taking about 1 millisecond per log,
         // and this is very expensive to flush after each log message for debugging.  Since we almost
         // never use the Event Log when debugging apps it is better to simply leave it out.
+#ifdef OVR_ENABLE_OS_EVENT_LOG
         AddPlugin(std::make_shared<OutputEventLog>());
+#endif
 
         // Do not log to the DbgView output from the worker thread.  When a debugger is attached we
         // instead flush directly to the DbgView log so that the messages are available at breakpoints.
         AddPlugin(std::make_shared<OutputDbgView>());
     }
 
-    // If there is a console window,
-    if (GetConsoleWindow() != NULL)
-    {
-        // Enable the console.  This logger takes 3 milliseconds per message, so it is fairly
-        // slow and should be avoided if it is not needed (ie. console is not shown).
-        AddPlugin(std::make_shared<OutputConsole>());
-    }
+    #if defined(_WIN32)
+        // If there is a console window,
+        if (::GetConsoleWindow() != NULL)
+        {
+            // Enable the console.  This logger takes 3 milliseconds per message, so it is fairly
+            // slow and should be avoided if it is not needed (ie. console is not shown).
+            AddPlugin(std::make_shared<OutputConsole>());
+        }
+    #endif
 }
 
 void OutputWorker::AddPlugin(std::shared_ptr<OutputPlugin> plugin)
@@ -159,11 +261,34 @@ void OutputWorker::RemovePlugin(std::shared_ptr<OutputPlugin> pluginToRemove)
     }
 }
 
+std::shared_ptr<OutputPlugin> OutputWorker::GetPlugin(const char* const pluginName)
+{
+    Locker locker(PluginsLock);
+
+    for (auto& existingPlugin : Plugins)
+    {
+        const char* const existingPluginName = existingPlugin->GetUniquePluginName();
+
+        // If the names match exactly,
+        if (0 == strcmp(pluginName, existingPluginName))
+        {
+            return existingPlugin;
+        }
+    }
+
+    return nullptr;
+}
+
 void OutputWorker::DisableAllPlugins()
 {
     Locker locker(PluginsLock);
 
     Plugins.clear();
+}
+
+Lock* OutputWorker::GetChannelsLock()
+{
+    return &ChannelsLock;
 }
 
 void OutputWorker::Start()
@@ -177,6 +302,11 @@ void OutputWorker::Start()
         return; // Nothing to do!
     }
 
+    // RestoreAllChannelLogLevelsNoLock is used to address http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2008/n2660.htm
+    // Section 6.7
+    // RestoreAllChannelLogLevelsNoLock otherwise invokes OutputWorker::GetInstance() whose constructor hasn't finished yet
+    Configurator::GetInstance()->RestoreAllChannelLogLevelsNoLock();
+
     if (!WorkerTerminator.Initialize())
     {
         // Unable to create worker terminator event?
@@ -184,14 +314,18 @@ void OutputWorker::Start()
         return;
     }
 
-    LoggingThread = ::CreateThread(
-        nullptr, // No thread security attributes
-        0, // Default stack size
-        &OutputWorker::WorkerThreadEntrypoint_, // Thread entrypoint
-        this, // This parameter
-        0, // No creation flags, start immediately
-        nullptr); // Do not request thread id
-
+    #if defined(_WIN32)
+        LoggingThread = ::CreateThread(
+            nullptr, // No thread security attributes
+            0, // Default stack size
+            &OutputWorker::WorkerThreadEntrypoint_, // Thread entrypoint
+            this, // This parameter
+            0, // No creation flags, start immediately
+            nullptr); // Do not request thread id
+    #else
+        // To do: Implement this, and probably convert thread usage here to C++ threads.
+    #endif
+    
     if (!LoggingThread.IsValid())
     {
         // Unable to create worker thread?
@@ -199,18 +333,15 @@ void OutputWorker::Start()
         return;
     }
 
-    // Scoped work queue lock:
-    {
-        // Set the flag to indicate the background thread should be used for log output.
-        // Log messages that happen before this point will flush immediately and not get
-        // lost so there is no race condition danger here.
-        Locker workQueueLock(WorkQueueLock);
-        LoggingFromWorkerThread = true;
-    }
+    // Note this may queue more than one OutputWorkerAtExit() call.
+    // This function needs to be robust to multiple calls in a row
+    std::atexit(&OutputWorkerAtExit);
 }
 
 void OutputWorker::Stop()
 {
+    // This function needs to be robust to multiple calls in a row
+
     // Hold start-stop lock to prevent Start() and Stop() from being called at the same time.
     Locker startStopLocker(StartStopLock);
 
@@ -220,9 +351,13 @@ void OutputWorker::Stop()
         WorkerTerminator.Terminate();
 
         // Wait for thread to end
-        ::WaitForSingleObject(
-            LoggingThread.Get(), // Thread handle
-            INFINITE); // Wait forever for thread to terminate
+        #if defined(_WIN32)
+            ::WaitForSingleObject(
+                LoggingThread.Get(), // Thread handle
+                INFINITE); // Wait forever for thread to terminate
+        #else
+            // To do: Implement this, and probably convert thread usage here to C++ threads.
+        #endif
 
         LoggingThread.Clear();
     }
@@ -233,63 +368,21 @@ void OutputWorker::Stop()
         // can use the flag to check if a flush has already occurred.
         Locker workQueueLock(WorkQueueLock);
 
-        // Set the flag here with the lock held as a sync point for calls into the logger.
-        LoggingFromWorkerThread = false;
-
         // Finish the last set of queued messages to avoid losing any before Stop() returns.
         ProcessQueuedMessages();
     }
 }
 
-void OutputWorker::Flush()
+
+
+static int GetTimestamp(char* buffer, int bufferBytes, const OutputWorker::LogTime& logTime)
 {
-    AutoHandle flushEvent;
-
-    // Scoped work queue lock:
-    {
-        Locker workQueueLock(WorkQueueLock);
-
-        // If we are already flushing immediately,
-        if (!LoggingFromWorkerThread)
-        {
-            // Flush function does nothing in this case.
-            return;
-        }
-
-        // Generate a flush event
-        flushEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        LogStringBuffer buffer("Logging", ovrlog::Level::Info);
-        QueuedLogMessage* queuedBuffer = new QueuedLogMessage(buffer);
-        queuedBuffer->FlushEvent = flushEvent.Get();
-
-        // Add queued buffer to the end of the work queue
-        WorkQueueAdd(queuedBuffer);
-
-        // Wake the worker thread
-        ::SetEvent(WorkerWakeEvent.Get());
-    }
-
-    // Wait until the event signals.
-    // Since we are guaranteed to never lose log messages, as late as Stop() being called,
-    // this cannot cause a hang.
-    ::WaitForSingleObject(flushEvent.Get(), INFINITE);
-}
-
-// Returns number of bytes written to buffer
-// Precondition: Buffer is large enough to hold everything,
-// so don't bother complaining there isn't enough length checking.
-static int GetTimestamp(char* buffer, int bufferBytes)
-{
-    // Get timestamp string
-    SYSTEMTIME time;
-    ::GetLocalTime(&time);
-    int writtenChars = ::GetTimeFormatA( // Intentionally using 'A' version.
-        LOCALE_USER_DEFAULT, // User locale
-        0, // Default flags
-        &time, // Time
-        "HH:mm:ss", // No format string
-        buffer, // Output buffer
-        bufferBytes); // Size of buffer in tchars
+#if defined(_WIN32)
+    // GetDateFormat and GetTimeFormat returns the number of characters written to the
+    // buffer if successful, including the trailing '\0'; and return 0 on failure.
+    char dateBuffer[16];
+    int  dateBufferLength;
+    int  writtenChars = ::GetDateFormatA(LOCALE_USER_DEFAULT, 0, &logTime, "dd/MM ", dateBuffer, sizeof(dateBuffer));
 
     if (writtenChars <= 0)
     {
@@ -297,14 +390,119 @@ static int GetTimestamp(char* buffer, int bufferBytes)
         buffer[0] = '\0';
         return 0;
     }
+    dateBufferLength = (writtenChars - 1);
+
+    char timeBuffer[32];
+    int  timeBufferLength;
+    writtenChars = ::GetTimeFormatA( // Intentionally using 'A' version.
+        LOCALE_USER_DEFAULT, // User locale
+        0, // Default flags
+        &logTime, // Time
+        "HH:mm:ss",
+        timeBuffer, // Output buffer
+        sizeof(timeBuffer)); // Size of buffer in tchars
+
+    if (writtenChars <= 0)
+    {
+        // Failure
+        buffer[0] = '\0';
+        return 0;
+    }
+    timeBufferLength = (writtenChars - 1);
 
     // Append milliseconds
-    buffer[writtenChars - 1] = '.';
-    buffer[writtenChars]     = ((time.wMilliseconds / 100) % 10) + '0';
-    buffer[writtenChars + 1] = ((time.wMilliseconds / 10) % 10) + '0';
-    buffer[writtenChars + 2] = (time.wMilliseconds % 10) + '0';
+    const char msBuffer[5] =
+    {
+        (char)('.'),
+        (char)(((logTime.wMilliseconds / 100) % 10) + '0'),
+        (char)(((logTime.wMilliseconds / 10) % 10) + '0'),
+        (char)((logTime.wMilliseconds % 10) + '0'),
+        (char)('\0')
+    };
 
-    return writtenChars + 3;
+    const int writeSum = (dateBufferLength + timeBufferLength + sizeof(msBuffer));
+
+    if (bufferBytes < writeSum)
+    {
+        buffer[0] = '\0';
+        return 0;
+    }
+
+    #pragma warning(push)           // We are guaranteed that strcpy is safe.
+    #pragma warning(disable: 4996)  //'strcpy': This function or variable may be unsafe.
+    strcpy(buffer, dateBuffer);
+    strcpy(buffer + dateBufferLength, timeBuffer);
+    strcpy(buffer + dateBufferLength + timeBufferLength, msBuffer);
+    #pragma warning(pop)
+
+    return (writeSum - 1); // -1 because we return the strlen of buffer, and don't include the trailing '\0'.
+#else
+    snprintf(buffer, bufferBytes, "%llu", (uint64_t)logTime);
+    return (int)strlen(buffer);
+#endif
+}
+
+
+
+// Returns number of bytes written to buffer
+// Precondition: Buffer is large enough to hold everything,
+// so don't bother complaining there isn't enough length checking.
+static int GetTimestamp(char* buffer, int bufferBytes)
+{
+    OutputWorker::LogTime time = OutputWorker::GetCurrentLogTime();
+    return GetTimestamp(buffer, bufferBytes, time);
+}
+
+
+OutputWorker::LogTime OutputWorker::GetCurrentLogTime()
+{
+    #if defined(_WIN32)
+        SYSTEMTIME t;
+        ::GetLocalTime(&t);
+    #else
+        time_t t = time(NULL);
+    #endif
+    
+    return t;
+}
+
+
+void OutputWorker::Flush()
+{
+    if (!LoggingThread.IsValid())
+    {
+        LOGGING_DEBUG_BREAK(); // Must be called between Start() and Stop()
+        return;
+    }
+
+    #if defined(_WIN32)
+        AutoHandle flushEvent;
+
+        // Scoped work queue lock:
+        {
+            Locker workQueueLock(WorkQueueLock);
+
+            // Generate a flush event
+            flushEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
+            LogStringBuffer buffer("Logging", ovrlog::Level::Info);
+            LogTime time = GetCurrentLogTime();
+            QueuedLogMessage* queuedBuffer = new QueuedLogMessage("Logging", ovrlog::Level::Info, "", time);
+            queuedBuffer->FlushEvent = flushEvent.Get();
+
+            // Add queued buffer to the end of the work queue
+            WorkQueueAdd(queuedBuffer);
+
+            // Wake the worker thread
+            ::SetEvent(WorkerWakeEvent.Get());
+        }
+
+        // Wait until the event signals.
+        // Since we are guaranteed to never lose log messages, as late as Stop() being called,
+        // this cannot cause a hang.
+        ::WaitForSingleObject(flushEvent.Get(), INFINITE);
+    #else
+        // To do: Implement this.
+    #endif // _WIN32
 }
 
 static void WriteAdvanceStrCpy(char*& buffer, size_t& bufferBytes, const char* str)
@@ -350,7 +548,7 @@ void OutputWorker::AppendHeader(char* buffer, size_t bufferBytes, Level level, c
     buffer[0] = '\0';
 }
 
-DWORD WINAPI OutputWorker::WorkerThreadEntrypoint_(void* vworker)
+OVR_THREAD_FUNCTION_TYPE OutputWorker::WorkerThreadEntrypoint_(void* vworker)
 {
     // Invoke thread entry-point
     OutputWorker* worker = reinterpret_cast<OutputWorker*>(vworker);
@@ -385,24 +583,18 @@ void OutputWorker::ProcessQueuedMessages()
         return;
     }
 
-    // Get timestamp string
-    int timestampLength = GetTimestamp(HeaderBuffer, TempBufferBytes);
-    if (timestampLength <= 0)
-    {
-        LOGGING_DEBUG_BREAK(); return; // Maybe bug in timestamp code?
-    }
-
     // Log output format:
     // TIMESTAMP <L> [SubSystem] Message
 
     // If some messages were lost,
     if (lostCount > 0)
     {
-        LogStringBuffer buffer("Logging", Level::Error);
-        buffer.Stream << "Lost " << lostCount << " log messages due to queue overrun; try to reduce the amount of logging";
+        char str[255];
+        snprintf(str, sizeof(str), "Lost %i log messages due to queue overrun; try to reduce the amount of logging", lostCount);
 
         // Insert at the front of the list
-        QueuedLogMessage* queuedMsg = new QueuedLogMessage(buffer);
+        LogTime t = GetCurrentLogTime();
+        QueuedLogMessage* queuedMsg = new QueuedLogMessage("Logging", Level::Error, str, t);
         queuedMsg->Next = message;
         message = queuedMsg;
     }
@@ -417,10 +609,16 @@ void OutputWorker::ProcessQueuedMessages()
             if (message->FlushEvent != nullptr)
             {
                 // Signal it to wake up the waiting Flush() call.
-                ::SetEvent(message->FlushEvent);
+                #if defined(_WIN32)
+                    ::SetEvent(message->FlushEvent);
+                #else
+                    // To do: Implement this. Ideally switch this OutputWorker class to use std::condition_variable
+                #endif
             }
             else
             {
+                std::size_t timestampLength = GetTimestamp(HeaderBuffer, sizeof(HeaderBuffer), message->Time);
+
                 // Construct header on top of timestamp buffer
                 AppendHeader(HeaderBuffer + timestampLength, sizeof(HeaderBuffer) - timestampLength,
                     message->MessageLogLevel, message->SubsystemName);
@@ -442,7 +640,7 @@ void OutputWorker::ProcessQueuedMessages()
     }
 }
 
-void OutputWorker::FlushMessageImmediately(LogStringBuffer& buffer)
+void OutputWorker::FlushDbgViewLogImmediately(const char* subsystemName, Level messageLogLevel, const char* stream)
 {
     static const int TempBufferBytes = 1024; // 1 KiB
     char HeaderBuffer[TempBufferBytes];
@@ -456,54 +654,68 @@ void OutputWorker::FlushMessageImmediately(LogStringBuffer& buffer)
 
     // Construct log header on top of timestamp buffer
     AppendHeader(HeaderBuffer + timestampLength, sizeof(HeaderBuffer) - timestampLength,
-                 buffer.MessageLogLevel, buffer.SubsystemName);
-
-    std::string messageString = buffer.Stream.str();
-
-    {
-        Locker locker(PluginsLock);
-
-        // For each plugin,
-        for (auto& plugin : Plugins)
-        {
-            plugin->Write(
-                buffer.MessageLogLevel,
-                buffer.SubsystemName,
-                HeaderBuffer,
-                messageString.c_str());
-        }
-    }
-}
-
-void OutputWorker::FlushDbgViewLogImmediately(LogStringBuffer& buffer)
-{
-    static const int TempBufferBytes = 1024; // 1 KiB
-    char HeaderBuffer[TempBufferBytes];
-
-    // Get timestamp string
-    int timestampLength = GetTimestamp(HeaderBuffer, TempBufferBytes);
-    if (timestampLength <= 0)
-    {
-        LOGGING_DEBUG_BREAK(); return; // Maybe bug in timestamp code?
-    }
-
-    // Construct log header on top of timestamp buffer
-    AppendHeader(HeaderBuffer + timestampLength, sizeof(HeaderBuffer) - timestampLength,
-        buffer.MessageLogLevel, buffer.SubsystemName);
+                 messageLogLevel, subsystemName);
 
     // Build up a single string to send to OutputDebugStringA so it
     // all appears on the same line in DbgView.
     std::stringstream ss;
-    ss << HeaderBuffer << buffer.Stream.str() << "\n";
+    ss << HeaderBuffer << stream << "\n";
 
-    ::OutputDebugStringA(ss.str().c_str());
+    #if defined(_WIN32)
+        ::OutputDebugStringA(ss.str().c_str());
+    #else
+        fputs(ss.str().c_str(), stderr);
+    #endif
+}
+
+static void SetThreadName(const char* name)
+{
+    #if defined(_WIN32)
+        DWORD threadId = ::GetCurrentThreadId();
+
+        // http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
+        #pragma pack(push,8)
+        struct THREADNAME_INFO {
+            DWORD  dwType;     // Must be 0x1000
+            LPCSTR szName;     // Pointer to name (in user address space)
+            DWORD  dwThreadID; // Thread ID (-1 for caller thread)
+            DWORD  dwFlags;    // Reserved for future use; must be zero
+        };
+        union TNIUnion
+        {
+            THREADNAME_INFO tni;
+            ULONG_PTR       upArray[4];
+        };
+        #pragma pack(pop)
+
+        TNIUnion tniUnion = { { 0x1000, name, threadId, 0 } };
+
+        __try
+        {
+            RaiseException(0x406D1388, 0, ARRAYSIZE(tniUnion.upArray), tniUnion.upArray);
+        }
+        __except (GetExceptionCode() == 0x406D1388 ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_EXECUTE_HANDLER)
+        {
+            return;
+        }
+    #elif defined (__APPLE__)
+        pthread_setname_np(name);
+    #else
+        pthread_setname_np(pthread_self(), name);
+    #endif
 }
 
 void OutputWorker::WorkerThreadEntrypoint()
 {
-    // Lower the priority for logging.
-    ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+    SetThreadName("LoggingOutputWorker");
 
+    #if defined(_WIN32)
+        // Lower the priority for logging.
+        ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+    #else
+        // Other desktop platforms (e.g. Linux, OSX) don't let you set thread priorities.
+    #endif
+    
     while (!WorkerTerminator.IsTerminated())
     {
         if (WorkerTerminator.WaitOn(WorkerWakeEvent.Get()))
@@ -513,16 +725,8 @@ void OutputWorker::WorkerThreadEntrypoint()
     }
 }
 
-void OutputWorker::Write(LogStringBuffer& buffer, WriteOption option)
+void OutputWorker::Write(const char* subsystemName, Level messageLogLevel, const char* stream, bool relogged, WriteOption option)
 {
-    // If not logging from the worker thread,
-    if (!LoggingFromWorkerThread)
-    {
-        FlushMessageImmediately(buffer);
-        return;
-    }
-
-    QueuedLogMessage* queuedBuffer = new QueuedLogMessage(buffer);
     bool dropped = false; // Flag indicates if the message was dropped due to queue overrun
     bool needToWakeWorkerThread = false; // Flag indicates if we need to wake the worker thread
 
@@ -530,16 +734,8 @@ void OutputWorker::Write(LogStringBuffer& buffer, WriteOption option)
     {
         Locker locker(WorkQueueLock);
 
-        // If not logging from worker thread,
-        if (!LoggingFromWorkerThread)
-        {
-            // Immediately dequeue and log it.  Yes this is slow but it only happens in transient cases.
-            FlushMessageImmediately(buffer);
-            dropped = true;
-        }
-        // If no room in the queue,
-        else if (option != WriteOption::DangerouslyIgnoreQueueLimit &&
-                 WorkQueueSize >= WorkQueueLimit)
+        if (option != WriteOption::DangerouslyIgnoreQueueLimit &&
+            WorkQueueSize >= WorkQueueLimit)
         {
             // Record drop
             WorkQueueOverrun++;
@@ -548,7 +744,8 @@ void OutputWorker::Write(LogStringBuffer& buffer, WriteOption option)
         else
         {
             // Add queued buffer to the end of the work queue
-            WorkQueueAdd(queuedBuffer);
+            LogTime time = GetCurrentLogTime();
+            WorkQueueAdd(new QueuedLogMessage(subsystemName, messageLogLevel, stream, time));
 
             // Only need to wake the worker thread on the first message
             // The SetEvent() call takes 6 microseconds or so
@@ -559,54 +756,119 @@ void OutputWorker::Write(LogStringBuffer& buffer, WriteOption option)
         }
     }
 
-    if (dropped)
-    {
-        delete queuedBuffer;
-    }
-    else if (needToWakeWorkerThread)
+    if (!dropped && needToWakeWorkerThread)
     {
         // Wake the worker thread
-        ::SetEvent(WorkerWakeEvent.Get());
+        #if defined(_WIN32)
+            ::SetEvent(WorkerWakeEvent.Get());
+        #else
+            // To do: Implement this. Ideally switch this OutputWorker class to use std::condition_variable
+        #endif
     }
 
     // If this is the first time logging this message,
-    if (!buffer.Relogged)
+    if (!relogged)
     {
         // If we are in a debugger,
         if (IsInDebugger)
         {
-            FlushDbgViewLogImmediately(buffer);
+            FlushDbgViewLogImmediately(subsystemName, messageLogLevel, stream);
         }
     }
 }
 
-
 //-----------------------------------------------------------------------------
-// Channel
+// QueuedLogMessage
+
+OutputWorker::QueuedLogMessage::QueuedLogMessage(const char* subsystemName, Level messageLogLevel, const char* stream, const OutputWorker::LogTime& time)
+{
+    MessageLogLevel = messageLogLevel;
+    SubsystemName = subsystemName;
+    Buffer = stream;
+    Time = time;
+    Next = nullptr;
+    FlushEvent = nullptr;
+}
+
+void Channel::GetFunctionPointers()
+{
+    static bool gotFunctionPointers = false;
+    if (gotFunctionPointers == false)
+    {
+        #if defined(_WIN32)
+            OutputWorkerOutputFunction = (OutputWorkerOutputFunctionType)GetProcAddress(GetModuleHandle(NULL), "OutputWorkerOutputFunctionC");
+            ConfiguratorOnChannelLevelChange = (ConfiguratorOnChannelLevelChangeType)GetProcAddress(GetModuleHandle(NULL), "ConfiguratorOnChannelLevelChangeC");
+            ConfiguratorRegister = (ConfiguratorRegisterType)GetProcAddress(GetModuleHandle(NULL), "ConfiguratorRegisterC");
+            ConfiguratorUnregister = (ConfiguratorUnregisterType)GetProcAddress(GetModuleHandle(NULL), "ConfiguratorUnregisterC");
+        #else
+            // To do.
+        #endif
+        
+        if (!OutputWorkerOutputFunction)
+            OutputWorkerOutputFunction = OutputWorkerOutputFunctionC;
+
+        if (!ConfiguratorOnChannelLevelChange)
+            ConfiguratorOnChannelLevelChange = ConfiguratorOnChannelLevelChangeC;
+
+        if (!ConfiguratorRegister)
+            ConfiguratorRegister = ConfiguratorRegisterC;
+
+        if (!ConfiguratorUnregister)
+            ConfiguratorUnregister = ConfiguratorUnregisterC;
+
+        gotFunctionPointers = true;
+    }
+}
 
 Channel::Channel(const char* nameString) :
+    MinimumOutputLevel((Log_Level_t)Level::Info),
     SubsystemName(nameString),
-    MinimumOutputLevel(Level::Info)
+    UserOverrodeMinimumOutputLevel(false)
 {
     SubsystemName = nameString;
 
-    Configurator::GetInstance()->Register(this);
-    // We can get modified from other threads here...
+    Node.SubsystemName = SubsystemName;
+    Node.Level = &MinimumOutputLevel;
+    Node.UserOverrodeMinimumOutputLevel = &UserOverrodeMinimumOutputLevel;
+
+    GetFunctionPointers();
+
+    ConfiguratorRegister(&Node);
+}
+
+Channel::Channel(const Channel& other)
+{
+    SubsystemName = other.SubsystemName;
+    MinimumOutputLevel = other.MinimumOutputLevel;
+    UserOverrodeMinimumOutputLevel = other.UserOverrodeMinimumOutputLevel;
+
+    {
+        Locker locker(PrefixLock);
+        Prefix = other.Prefix;
+    }
+
+    Node.SubsystemName = SubsystemName;
+    Node.Level = &MinimumOutputLevel;
+    Node.UserOverrodeMinimumOutputLevel = &UserOverrodeMinimumOutputLevel;
+
+    ConfiguratorRegister(&Node);
 }
 
 Channel::~Channel()
 {
     // ...We can get modified from other threads here.
-    Configurator::GetInstance()->Unregister(this);
+    ConfiguratorUnregister(&Node);
 }
 
 std::string Channel::GetPrefix() const
 {
+    Locker locker(PrefixLock);
     return Prefix;
 }
 
 void Channel::SetPrefix(const std::string& prefix)
 {
+    Locker locker(PrefixLock);
     Prefix = prefix;
 }
 
@@ -614,12 +876,13 @@ void Channel::SetMinimumOutputLevel(Level newLevel)
 {
     SetMinimumOutputLevelNoSave(newLevel);
 
-    Configurator::GetInstance()->OnChannelLevelChange(this);
+    ConfiguratorOnChannelLevelChange(SubsystemName, MinimumOutputLevel);
 }
 
 void Channel::SetMinimumOutputLevelNoSave(Level newLevel)
 {
-    MinimumOutputLevel = newLevel;
+    MinimumOutputLevel = (Log_Level_t)newLevel;
+    UserOverrodeMinimumOutputLevel = true;
 }
 
 const char* Channel::GetName() const
@@ -629,9 +892,8 @@ const char* Channel::GetName() const
 
 Level Channel::GetMinimumOutputLevel() const
 {
-    return MinimumOutputLevel;
+    return (Level) MinimumOutputLevel;
 }
-
 
 //-----------------------------------------------------------------------------
 // Conversion functions
@@ -710,13 +972,7 @@ ConfiguratorPlugin::~ConfiguratorPlugin()
 // Log Configurator
 
 Configurator::Configurator() :
-    ChannelsLock(),
-#ifdef LOGGING_DEBUG
-    GlobalMinimumLogLevel(Level::Debug),
-#else
-    GlobalMinimumLogLevel(Level::Info),
-#endif
-    Channels(),
+    GlobalMinimumLogLevel((Log_Level_t) Level::Debug),
     Plugin(nullptr)
 {
 }
@@ -733,94 +989,144 @@ Configurator::~Configurator()
 
 void Configurator::SetGlobalMinimumLogLevel(Level level)
 {
-    Locker locker(ChannelsLock);
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
 
-    GlobalMinimumLogLevel = level;
+    GlobalMinimumLogLevel = (Log_Level_t)level;
 
-    for (Channel* channel : Channels)
+    for (ChannelNode* channelNode = ChannelNodeHead; channelNode; channelNode = channelNode->Next)
     {
-        channel->SetMinimumOutputLevelNoSave(level);
+        *(channelNode->Level) = (ovrlog::Log_Level_t) level;
     }
 }
 
-void Configurator::RestoreChannelLogLevel(Channel* channel)
+// Should be locked already when calling this function!
+void Configurator::RestoreChannelLogLevel(const char* channelName)
 {
-    Level level = GlobalMinimumLogLevel;
+    Level level = (Level) GlobalMinimumLogLevel;
 
     // Look up the log level for this channel if we can
     if (Plugin)
     {
-        Plugin->RestoreChannelLevel(channel->GetName(), level);
+        Plugin->RestoreChannelLevel(channelName, level);
     }
 
-    channel->SetMinimumOutputLevelNoSave(level);
+    const std::string stdChannelName(channelName);
+
+    SetChannelNoLock(stdChannelName, level, false);
+}
+
+void Configurator::RestoreChannelLogLevel(ChannelNode* channelNode)
+{
+    Level level = (Level)GlobalMinimumLogLevel;
+
+    // Look up the log level for this channel if we can
+    if (Plugin)
+    {
+        Plugin->RestoreChannelLevel(channelNode->SubsystemName, level);
+    }
+
+    // Don't undo user calls to SetMinimumOutputLevelNoSave()
+    if (*(channelNode->UserOverrodeMinimumOutputLevel) == false)
+    {
+        *(channelNode->Level) = (Log_Level_t)level;
+    }
+}
+
+void Configurator::RestoreAllChannelLogLevels()
+{
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
+    RestoreAllChannelLogLevelsNoLock();
+}
+
+void Configurator::RestoreAllChannelLogLevelsNoLock()
+{
+    for (ChannelNode* channelNode = ChannelNodeHead; channelNode; channelNode = channelNode->Next)
+    {
+        RestoreChannelLogLevel(channelNode->SubsystemName);
+    }
 }
 
 void Configurator::SetPlugin(std::shared_ptr<ConfiguratorPlugin> plugin)
 {
-    Locker locker(ChannelsLock);
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
 
     Plugin = plugin;
 
-    for (Channel* channel : Channels)
+    for (ChannelNode* channelNode = ChannelNodeHead; channelNode; channelNode = channelNode->Next)
     {
-        RestoreChannelLogLevel(channel);
+        RestoreChannelLogLevel(channelNode->SubsystemName);
+    }
+}
+void Configurator::GetChannels(std::vector< std::pair<std::string, Level> > &channels)
+{
+    channels.clear();
+
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
+
+    for (ChannelNode* channelNode = ChannelNodeHead; channelNode; channelNode = channelNode->Next)
+    {
+        channels.push_back(std::make_pair(std::string(channelNode->SubsystemName), (Level)*(channelNode->Level)));
+    }
+}
+void Configurator::SetChannel(std::string channelName, Level level)
+{
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
+    SetChannelNoLock(channelName, level, true);
+}
+
+// Should be locked already when calling this function!
+void Configurator::SetChannelNoLock(std::string channelName, Level level, bool overrideUser)
+{
+    for (ChannelNode* channelNode = ChannelNodeHead; channelNode; channelNode = channelNode->Next)
+    {
+        if (std::string(channelNode->SubsystemName) == channelName)
+        {
+            if (*(channelNode->UserOverrodeMinimumOutputLevel) == false || overrideUser)
+            {
+                *(channelNode->Level) = (Log_Level_t)level;
+
+                // Purposely no break, channels may have duplicate names
+            }
+        }
     }
 }
 
-void Configurator::Register(Channel* channel)
+void Configurator::OnChannelLevelChange(const char* channelName, Log_Level_t minimumOutputLevel)
 {
-    Locker locker(ChannelsLock);
-
-    Channels.erase(channel);
-    Channels.insert(channel);
-
-    RestoreChannelLogLevel(channel);
-}
-
-void Configurator::Unregister(Channel* channel)
-{
-    Locker locker(ChannelsLock);
-
-    Channels.erase(channel);
-}
-
-void Configurator::OnChannelLevelChange(Channel* channel)
-{
-    Locker locker(ChannelsLock);
+    Locker locker(OutputWorker::GetInstance()->GetChannelsLock());
 
     if (Plugin)
     {
         // Save channel level
-        Plugin->SaveChannelLevel(channel->GetName(), channel->GetMinimumOutputLevel());
+        Plugin->SaveChannelLevel(channelName, (Level) minimumOutputLevel);
     }
 }
 
 
 //-----------------------------------------------------------------------------
 // ErrorSilencer
-
-#if !defined(OVR_CC_MSVC) || (OVR_CC_MSVC < 1300)
-    __declspec(thread) int ThreadErrorSilenced = 0;
+#if defined(_MSC_VER)
+    #if (_MSC_VER < 1300)
+        __declspec(thread) int ThreadErrorSilencedOptions = 0;
+    #else
+        #pragma data_seg(".tls$")
+        __declspec(thread) int ThreadErrorSilencedOptions = 0;
+        #pragma data_seg(".rwdata")
+    #endif
 #else
-    #pragma data_seg(".tls$")
-    __declspec(thread) int ThreadErrorSilenced = 0;
-    #pragma data_seg(".rwdata")
+    thread_local int ThreadErrorSilencedOptions = 0;
 #endif
 
-bool ErrorSilencer::IsSilenced()
+int ErrorSilencer::GetSilenceOptions()
 {
-    return ThreadErrorSilenced > 0;
+    return ThreadErrorSilencedOptions;
 }
 
-ErrorSilencer::ErrorSilencer(bool initiallySilenced) :
-    ThisObjectCurrentlySilenced(false)
-{
-    if (initiallySilenced)
+ErrorSilencer::ErrorSilencer(int options) :
+    Options(options)
     {
         Silence();
     }
-}
 
 ErrorSilencer::~ErrorSilencer()
 {
@@ -829,22 +1135,17 @@ ErrorSilencer::~ErrorSilencer()
 
 void ErrorSilencer::Silence()
 {
-    if (!ThisObjectCurrentlySilenced)
-    {
-        ThreadErrorSilenced++;
-        ThisObjectCurrentlySilenced = true;
-    }
+    // We do not currently support recursive silencers
+    assert(!GetSilenceOptions());
+    ThreadErrorSilencedOptions = Options;
 }
 
 void ErrorSilencer::Unsilence()
 {
-    if (ThisObjectCurrentlySilenced)
-    {
-        ThreadErrorSilenced--;
-        ThisObjectCurrentlySilenced = false;
-    }
+    // We do not currently support recursive silencers
+    assert(GetSilenceOptions());
+    ThreadErrorSilencedOptions = 0;
 }
-
 
 } // namespace ovrlog
 
