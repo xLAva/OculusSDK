@@ -17,6 +17,9 @@ EXPORTS
    ovr_GetFovTextureSize
    ovr_GetRenderDesc
    ovr_SubmitFrame
+   ovr_WaitToBeginFrame
+   ovr_BeginFrame
+   ovr_EndFrame
    ovr_GetPredictedDisplayTime
    ovr_GetTimeInSeconds
    ovr_GetBool
