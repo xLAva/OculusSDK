@@ -49,7 +49,11 @@ limitations under the License.
 #endif
 
 OVR_DISABLE_ALL_MSVC_WARNINGS()
+// d3dkmthk.h requires an NTSTATUS type, but WIN32_LEAN_AND_MEAN will prevent.
+#define WIN32_NO_STATUS
 #include <Windows.h>
+#undef WIN32_NO_STATUS
+#include <ntstatus.h>
 OVR_RESTORE_ALL_MSVC_WARNINGS()
 
 #ifdef DID_DEFINE_WINSOCKAPI
@@ -212,6 +216,6 @@ class ScopedHKEY {
 
 } // namespace OVR
 
-#endif // OVR_OS_WIN32
+#endif // OVR_OS_MS
 
 #endif // OVR_Win32_IncludeWindows_h

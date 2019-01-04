@@ -4,7 +4,7 @@ PublicHeader:   None
 Filename    :   OVR_Error.cpp
 Content     :   Structs and functions for handling OVRErrorInfos
 Created     :   February 15, 2015
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -33,7 +33,7 @@ limitations under the License.
 #include "OVR_UTF8Util.h"
 #include "OVR_Threads.h"
 #include "OVR_Win32_IncludeWindows.h"
-#include "Logging_Library.h"
+#include "Logging/Logging_Library.h"
 
 OVR_DISABLE_ALL_MSVC_WARNINGS()
 OVR_DISABLE_MSVC_WARNING(4265)
@@ -191,8 +191,11 @@ OVRError::~OVRError() {
 }
 
 OVRError& OVRError::operator=(const OVRError& ovrError) {
+  ErrorString = ovrError.ErrorString;
   Code = ovrError.Code;
+  SysCodeType = ovrError.SysCodeType;
   SysCode = ovrError.SysCode;
+  strcpy(SysCodeStr, ovrError.SysCodeStr);
   Description = ovrError.Description;
   Context = ovrError.Context;
   OVRTime = ovrError.OVRTime;
@@ -207,8 +210,11 @@ OVRError& OVRError::operator=(const OVRError& ovrError) {
 }
 
 OVRError& OVRError::operator=(OVRError&& ovrError) {
+  ErrorString = ovrError.ErrorString;
   Code = ovrError.Code;
+  SysCodeType = ovrError.SysCodeType;
   SysCode = ovrError.SysCode;
+  strcpy(SysCodeStr, ovrError.SysCodeStr);
   Description = std::move(ovrError.Description);
   Context = std::move(ovrError.Context);
   OVRTime = ovrError.OVRTime;
@@ -240,8 +246,11 @@ void OVRError::SetCurrentValues() {
 }
 
 void OVRError::Reset() {
+  ErrorString.Clear();
   Code = ovrSuccess;
+  SysCodeType = ovrSysErrorCodeType::None;
   SysCode = ovrSysErrorCodeSuccess;
+  SysCodeStr[0] = '\0';
   Description.Clear();
   Context.Clear();
   OVRTime = 0;
@@ -254,61 +263,65 @@ void OVRError::Reset() {
 }
 
 String OVRError::GetErrorString() const {
-  StringBuffer stringBuffer("OVR Error:\n");
+  if (ErrorString.GetSize() == 0) { // If not already cached...
+    ErrorString.AppendString("OVR Error:\n");
 
-  // Code
-  OVR::String errorCodeString;
-  GetErrorCodeString(Code, false, errorCodeString);
-  stringBuffer.AppendFormat("  Code: %d -- %s\n", Code, errorCodeString.ToCStr());
+    // Code
+    OVR::String errorCodeString;
+    GetErrorCodeString(Code, false, errorCodeString);
+    ErrorString.AppendFormat("  Code: %d -- %s\n", Code, errorCodeString.ToCStr());
 
-  // SysCode
-  if (SysCode != ovrSysErrorCodeSuccess) {
-    OVR::String sysErrorString;
-    GetSysErrorCodeString(SysCode, false, sysErrorString);
-    OVRRemoveTrailingNewlines(sysErrorString);
-    stringBuffer.AppendFormat(
-        "  System error: %d (%x) -- %s\n", (int)SysCode, (int)SysCode, sysErrorString.ToCStr());
+    // SysCode
+    if (SysCode != ovrSysErrorCodeSuccess) {
+      if (SysCodeStr[0]) { // If the sys error was previously set to a custom value...
+        ErrorString.AppendFormat(
+            "  System error: %d (%x) -- %s\n", (int)SysCode, (int)SysCode, SysCodeStr);
+      } else { // Else just build it with the system error code.
+        OVR::String sysErrorString;
+        GetSysErrorCodeString(SysCode, false, sysErrorString);
+        OVRRemoveTrailingNewlines(sysErrorString);
+        ErrorString.AppendFormat(
+            "  System error: %d (%x) -- %s\n", (int)SysCode, (int)SysCode, sysErrorString.ToCStr());
+      }
+    }
+
+    // Description
+    if (Description.GetLength()) {
+      ErrorString.AppendFormat("  Description: %s\n", Description.ToCStr());
+    }
+
+    // OVRTime
+    ErrorString.AppendFormat("  OVRTime: %f\n", OVRTime);
+
+    // SysClockTime
+    OVR::String sysClockTimeString;
+    OVRFormatDateTime(ClockTime, sysClockTimeString);
+    ErrorString.AppendFormat("  Time: %s\n", sysClockTimeString.ToCStr());
+
+    // Context
+    if (Context.GetLength())
+      ErrorString.AppendFormat("  Context: %s\n", Context.ToCStr());
+
+    // If LogLine is set,
+    if (LogLine != kLogLineUnset)
+      ErrorString.AppendFormat("  LogLine: %lld\n", LogLine);
+
+    // FILE/LINE
+    if (SourceFilePath.GetLength())
+      ErrorString.AppendFormat("  File/Line: %s:%d\n", SourceFilePath.ToCStr(), SourceFileLine);
+
+    // Backtrace
+    if (Backtrace.GetSize()) {
+      // We can trace symbols in a debug build here or we can trace just addresses. See other code
+      // for examples of how to trace symbols.
+      ErrorString.AppendFormat("  Backtrace: ");
+      for (size_t i = 0, iEnd = Backtrace.GetSize(); i != iEnd; ++i)
+        ErrorString.AppendFormat(" %p", Backtrace[i]);
+      ErrorString.AppendChar('\n');
+    }
   }
 
-  // Description
-  if (Description.GetLength()) {
-    stringBuffer.AppendFormat("  Description: %s\n", Description.ToCStr());
-  }
-
-  // OVRTime
-  stringBuffer.AppendFormat("  OVRTime: %f\n", OVRTime);
-
-  // SysClockTime
-  OVR::String sysClockTimeString;
-  OVRFormatDateTime(ClockTime, sysClockTimeString);
-  stringBuffer.AppendFormat("  Time: %s\n", sysClockTimeString.ToCStr());
-
-  // Context
-  if (Context.GetLength()) {
-    stringBuffer.AppendFormat("  Context: %s\n", Context.ToCStr());
-  }
-
-  // If LogLine is set,
-  if (LogLine != kLogLineUnset) {
-    stringBuffer.AppendFormat("  LogLine: %lld\n", LogLine);
-  }
-
-  // FILE/LINE
-  if (SourceFilePath.GetLength()) {
-    stringBuffer.AppendFormat("  File/Line: %s:%d\n", SourceFilePath.ToCStr(), SourceFileLine);
-  }
-
-  // Backtrace
-  if (Backtrace.GetSize()) {
-    // We can trace symbols in a debug build here or we can trace just addresses. See other code for
-    // examples of how to trace symbols.
-    stringBuffer.AppendFormat("  Backtrace: ");
-    for (size_t i = 0, iEnd = Backtrace.GetSize(); i != iEnd; ++i)
-      stringBuffer.AppendFormat(" %p", Backtrace[i]);
-    stringBuffer.AppendChar('\n');
-  }
-
-  return OVR::String(stringBuffer.ToCStr(), stringBuffer.GetSize());
+  return OVR::String(ErrorString.ToCStr(), ErrorString.GetSize());
 }
 
 void OVRError::SetCode(ovrResult code) {
@@ -319,8 +332,18 @@ ovrResult OVRError::GetCode() const {
   return Code;
 }
 
-void OVRError::SetSysCode(ovrSysErrorCode sysCode) {
+void OVRError::SetSysCode(
+    ovrSysErrorCodeType sysCodeType,
+    ovrSysErrorCode sysCode,
+    const char* sysCodeString) {
+  SysCodeType = sysCodeType;
   SysCode = sysCode;
+  if (sysCodeString)
+    OVR_strlcpy(SysCodeStr, sysCodeString, sizeof(SysCodeStr));
+}
+
+ovrSysErrorCodeType OVRError::GetSysCodeType() const {
+  return SysCodeType;
 }
 
 ovrSysErrorCode OVRError::GetSysCode() const {
@@ -417,7 +440,9 @@ void SetErrorCallback(OVRErrorCallback callback) {
 
 OVRError MakeError(
     ovrResult errorCode,
+    ovrSysErrorCodeType sysCodeType,
     ovrSysErrorCode sysCode,
+    const char* sysCodeString, // Optional pre-generated sys error code string.
     const char* pSourceFile,
     int sourceLine,
     bool logError,
@@ -429,7 +454,7 @@ OVRError MakeError(
 
   ovrError.SetCurrentValues(); // Sets the current time, etc.
 
-  ovrError.SetSysCode(sysCode);
+  ovrError.SetSysCode(sysCodeType, sysCode, sysCodeString);
 
   va_list argList;
   va_start(argList, pDescriptionFormat);
@@ -446,24 +471,23 @@ OVRError MakeError(
   LastErrorTLS::GetInstance()->LastError() = ovrError;
 
   int silencerOptions = ovrlog::ErrorSilencer::GetSilenceOptions();
-  if (silencerOptions & ovrlog::ErrorSilencer::CompletelySilenceLogs) {
+
+  if (silencerOptions & ovrlog::ErrorSilencer::CompletelySilenceLogs)
     logError = false;
-  }
-  if (silencerOptions & ovrlog::ErrorSilencer::PreventErrorAsserts) {
+
+  if (silencerOptions & ovrlog::ErrorSilencer::PreventErrorAsserts)
     assertError = false;
-  }
 
-  // If logging the error:
-  if (logError) {
+  if (logError)
     Logger.LogError(ovrError.GetErrorString().ToCStr());
-  }
 
-  // If asserting the error:
   if (assertError) {
     // Assert in debug mode to alert unit tester/developer of the error as it occurs.
     OVR_FAIL_M(ovrError.GetErrorString().ToCStr());
   }
 
+  // ErrorCallback should be called after LastErrorTLS is set.
+  // ErrorCallback could choose to save LastErrorTLS if desired.
   if (ErrorCallback) {
     const bool quiet = !logError && !assertError;
     ErrorCallback(ovrError, quiet);

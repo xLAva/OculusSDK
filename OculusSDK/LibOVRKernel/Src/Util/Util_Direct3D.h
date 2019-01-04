@@ -5,7 +5,7 @@ Content     :   Shared code for Direct3D
 Created     :   Oct 14, 2014
 Authors     :   Chris Taylor
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -26,6 +26,8 @@ limitations under the License.
 
 #ifndef OVR_Util_Direct3D_h
 #define OVR_Util_Direct3D_h
+
+#if defined(_WIN32)
 
 // Include Windows correctly first before implicitly including it below
 #include "Kernel/OVR_Win32_IncludeWindows.h"
@@ -151,7 +153,9 @@ void LogD3DCompileError(HRESULT hr, ID3DBlob* errorBlob);
 #define OVR_D3D_TAG_OBJECT(child) (void(0))
 
 #endif // !Debug
-}
-} // namespace OVR::D3DUtil
+} // namespace D3DUtil
+} // namespace OVR
+
+#endif // _WIN32
 
 #endif // OVR_Util_Direct3D_h

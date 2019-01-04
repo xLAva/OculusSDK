@@ -6,7 +6,7 @@ Content     :   Contains thread-related (safe) functionality
 Created     :   September 19, 2012
 Notes       :
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -35,6 +35,10 @@ limitations under the License.
 #include <memory>
 #include <mutex>
 #include <condition_variable>
+
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 // Defines the infinite wait delay timeout
 #define OVR_WAIT_INFINITE 0xFFFFFFFF
@@ -169,7 +173,7 @@ bool MSleep(unsigned msecs);
 // *** Debugging functionality
 void SetCurrentThreadName(const char* name);
 void GetCurrentThreadName(char* name, size_t nameCapacity);
-};
+}; // namespace Thread
 
 // Returns the unique Id of a thread it is called on, intended for
 // comparison purposes.
@@ -207,7 +211,7 @@ ThreadId GetCurrentThreadId();
 #define OVR_THREAD_LOCAL __declspec(thread)
 #endif
 
-} // OVR
+} // namespace OVR
 
 #endif // OVR_ENABLE_THREADS
 #endif // OVR_Threads_h

@@ -3,7 +3,7 @@
 Filename    :   CAPI_GLE.h
 Content     :   OpenGL extensions support. Implements a stripped down glew-like
                 interface with some additional functionality.
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -2255,6 +2255,13 @@ GLE_CLASS_EXPORT class GLEContext {
   PFNGLBLENDFUNCIPROC glBlendFunci_Impl;
   PFNGLMINSAMPLESHADINGPROC glMinSampleShading_Impl;
 
+  // GL_VERSION_4_2
+  PFNGLMEMORYBARRIER glMemoryBarrier_Impl;
+
+  // GL_VERSION_4_3
+  PFNGLDISPATCHCOMPUTEPROC glDispatchCompute_Impl;
+  PFNGLBINDIMAGETEXTUREPROC glBindImageTexture_Impl;
+
   // GL_AMD_debug_output
   PFNGLDEBUGMESSAGECALLBACKAMDPROC glDebugMessageCallbackAMD_Impl;
   PFNGLDEBUGMESSAGEENABLEAMDPROC glDebugMessageEnableAMD_Impl;
@@ -2444,28 +2451,27 @@ GLE_CLASS_EXPORT class GLEContext {
   PFNGLADDSWAPHINTRECTWINPROC glAddSwapHintRectWIN_Impl;
 
 #if defined(GLE_WGL_ENABLED)
-// WGL
-// We don't declare pointers for these because we statically link to the implementations, same as
-// with the OpenGL 1.1 functions.
-// BOOL  wglCopyContext_Hook(HGLRC, HGLRC, UINT);
-// HGLRC wglCreateContext_Hook(HDC);
-// HGLRC wglCreateLayerContext_Hook(HDC, int);
-// BOOL  wglDeleteContext_Hook(HGLRC);
-// HGLRC wglGetCurrentContext_Hook(VOID);
-// HDC   wglGetCurrentDC_Hook(VOID);
-// PROC  wglGetProcAddress_Hook(LPCSTR);
-// BOOL  wglMakeCurrent_Hook(HDC, HGLRC);
-// BOOL  wglShareLists_Hook(HGLRC, HGLRC);
-// BOOL  wglUseFontBitmapsA_Hook(HDC, DWORD, DWORD, DWORD);
-// BOOL  wglUseFontBitmapsW_Hook(HDC, DWORD, DWORD, DWORD);
-// BOOL  wglUseFontOutlinesA_Hook(HDC, DWORD, DWORD, DWORD, FLOAT, FLOAT, int, LPGLYPHMETRICSFLOAT);
-// BOOL  wglUseFontOutlinesW_Hook(HDC, DWORD, DWORD, DWORD, FLOAT, FLOAT, int, LPGLYPHMETRICSFLOAT);
-// BOOL  wglDescribeLayerPlane_Hook(HDC, int, int, UINT, LPLAYERPLANEDESCRIPTOR);
-// int   wglSetLayerPaletteEntries_Hook(HDC, int, int, int, CONST COLORREF *);
-// int   wglGetLayerPaletteEntries_Hook(HDC, int, int, int, COLORREF *);
-// BOOL  wglRealizeLayerPalette_Hook(HDC, int, BOOL);
-// BOOL  wglSwapLayerBuffers_Hook(HDC, UINT);
-// DWORD wglSwapMultipleBuffers_Hook(UINT, CONST WGLSWAP *);
+  // WGL
+  // We don't declare pointers for these because we statically link to the implementations, same as
+  // with the OpenGL 1.1 functions.
+  // BOOL  wglCopyContext_Hook(HGLRC, HGLRC, UINT);
+  // HGLRC wglCreateContext_Hook(HDC);
+  // HGLRC wglCreateLayerContext_Hook(HDC, int);
+  // BOOL  wglDeleteContext_Hook(HGLRC);
+  // HGLRC wglGetCurrentContext_Hook(VOID);
+  // HDC   wglGetCurrentDC_Hook(VOID);
+  // PROC  wglGetProcAddress_Hook(LPCSTR);
+  // BOOL  wglMakeCurrent_Hook(HDC, HGLRC);
+  // BOOL  wglShareLists_Hook(HGLRC, HGLRC);
+  // BOOL  wglUseFontBitmapsA_Hook(HDC, DWORD, DWORD, DWORD);
+  // BOOL  wglUseFontBitmapsW_Hook(HDC, DWORD, DWORD, DWORD);
+  // BOOL  wglUseFontOutlinesA_Hook(HDC, DWORD, DWORD, DWORD, FLOAT, FLOAT, int,
+  // LPGLYPHMETRICSFLOAT); BOOL  wglUseFontOutlinesW_Hook(HDC, DWORD, DWORD, DWORD, FLOAT, FLOAT,
+  // int, LPGLYPHMETRICSFLOAT); BOOL  wglDescribeLayerPlane_Hook(HDC, int, int, UINT,
+  // LPLAYERPLANEDESCRIPTOR); int   wglSetLayerPaletteEntries_Hook(HDC, int, int, int, CONST
+  // COLORREF *); int   wglGetLayerPaletteEntries_Hook(HDC, int, int, int, COLORREF *); BOOL
+  // wglRealizeLayerPalette_Hook(HDC, int, BOOL); BOOL  wglSwapLayerBuffers_Hook(HDC, UINT); DWORD
+  // wglSwapMultipleBuffers_Hook(UINT, CONST WGLSWAP *);
 
 #if 0
         PFNWGLCOPYCONTEXTPROC            wglCopyContext_Impl;

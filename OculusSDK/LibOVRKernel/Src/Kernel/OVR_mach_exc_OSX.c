@@ -284,7 +284,9 @@ mig_external kern_return_t mach_exception_raise_OVR(
   InP->exception = exception;
 
   if (codeCnt > 2) {
-    { return MIG_ARRAY_TOO_LARGE; }
+    {
+      return MIG_ARRAY_TOO_LARGE;
+    }
   }
   (void)memcpy((char*)InP->code, (const char*)code, 8 * codeCnt);
 
@@ -682,7 +684,9 @@ mig_external kern_return_t mach_exception_raise_state_OVR(
   InP->exception = exception;
 
   if (codeCnt > 2) {
-    { return MIG_ARRAY_TOO_LARGE; }
+    {
+      return MIG_ARRAY_TOO_LARGE;
+    }
   }
   (void)memcpy((char*)InP->code, (const char*)code, 8 * codeCnt);
 
@@ -695,7 +699,9 @@ mig_external kern_return_t mach_exception_raise_state_OVR(
   InP->flavor = *flavor;
 
   if (old_stateCnt > 144) {
-    { return MIG_ARRAY_TOO_LARGE; }
+    {
+      return MIG_ARRAY_TOO_LARGE;
+    }
   }
   (void)memcpy((char*)InP->old_state, (const char*)old_state, 4 * old_stateCnt);
 
@@ -1179,7 +1185,9 @@ mig_external kern_return_t mach_exception_raise_state_identity_OVR(
   InP->exception = exception;
 
   if (codeCnt > 2) {
-    { return MIG_ARRAY_TOO_LARGE; }
+    {
+      return MIG_ARRAY_TOO_LARGE;
+    }
   }
   (void)memcpy((char*)InP->code, (const char*)code, 8 * codeCnt);
 
@@ -1192,7 +1200,9 @@ mig_external kern_return_t mach_exception_raise_state_identity_OVR(
   InP->flavor = *flavor;
 
   if (old_stateCnt > 144) {
-    { return MIG_ARRAY_TOO_LARGE; }
+    {
+      return MIG_ARRAY_TOO_LARGE;
+    }
   }
   (void)memcpy((char*)InP->old_state, (const char*)old_state, 4 * old_stateCnt);
 

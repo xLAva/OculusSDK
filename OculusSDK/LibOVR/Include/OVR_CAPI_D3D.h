@@ -1,7 +1,7 @@
 /********************************************************************************/ /**
  \file      OVR_CAPI_D3D.h
  \brief     D3D specific structures used by the CAPI interface.
- \copyright Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+ \copyright Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
  ************************************************************************************/
 
 #ifndef OVR_CAPI_D3D_h
@@ -9,7 +9,6 @@
 
 #include "OVR_CAPI.h"
 #include "OVR_Version.h"
-
 
 #if defined(_WIN32)
 #include <Unknwn.h>
@@ -100,7 +99,7 @@ ovr_GetTextureSwapChainBufferDX(
 /// Create Mirror Texture which is auto-refreshed to mirror Rift contents produced by this
 /// application.
 ///
-/// A second call to ovr_CreateMirrorTextureDX for a given ovrSession before destroying
+/// A second call to ovr_CreateMirrorTextureWithOptionsDX for a given ovrSession before destroying
 /// the first one is not supported and will result in an error return.
 ///
 /// \param[in]  session Specifies an ovrSession previously returned by ovr_Create.
@@ -137,8 +136,8 @@ ovr_GetTextureSwapChainBufferDX(
 ///         mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
 ///         mirrorDesc.Width  = mirrorWindowWidth;
 ///         mirrorDesc.Height = mirrorWindowHeight;
-///         ovrResult result = ovr_CreateMirrorTextureDX(session, d3d11Device, &mirrorDesc,
-///         &mirrorTexture);
+///         ovrResult result = ovr_CreateMirrorTextureWithOptionsDX(session, d3d11Device,
+///         &mirrorDesc, &mirrorTexture);
 ///         [...]
 ///         // Destroy the texture when done with it.
 ///         ovr_DestroyMirrorTexture(session, mirrorTexture);
@@ -149,18 +148,31 @@ ovr_GetTextureSwapChainBufferDX(
 /// \see ovr_DestroyMirrorTexture
 ///
 OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_CreateMirrorTextureWithOptionsDX(
+    ovrSession session,
+    IUnknown* d3dPtr,
+    const ovrMirrorTextureDesc* desc,
+    ovrMirrorTexture* out_MirrorTexture);
+
+/// Deprecated. Use ovr_CreateMirrorTextureWithOptionsDX instead
+///
+/// Same as ovr_CreateMirrorTextureWithOptionsDX except doesn't use ovrMirrorOptions flags as part
+/// of ovrMirrorTextureDesc's MirrorOptions field, and defaults to ovrMirrorOption_PostDistortion
+///
+/// \see ovrMirrorOptions, ovr_CreateMirrorTextureWithOptionsDX
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
 ovr_CreateMirrorTextureDX(
     ovrSession session,
     IUnknown* d3dPtr,
     const ovrMirrorTextureDesc* desc,
     ovrMirrorTexture* out_MirrorTexture);
 
-
 /// Get a the underlying buffer as any compatible COM interface (similar to QueryInterface)
 ///
 /// \param[in]  session Specifies an ovrSession previously returned by ovr_Create.
 /// \param[in]  mirrorTexture Specifies an ovrMirrorTexture previously returned
-///             by ovr_CreateMirrorTextureDX
+///             by ovr_CreateMirrorTextureWithOptionsDX
 /// \param[in]  iid Specifies the interface ID of the interface pointer to query the buffer for.
 /// \param[out] out_Buffer Returns the COM interface pointer retrieved.
 ///

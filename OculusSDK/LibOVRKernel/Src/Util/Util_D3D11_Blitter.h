@@ -5,7 +5,7 @@ Content     :   D3D11 implementation for blitting, supporting scaling
 Created     :   February 24, 2015
 Authors     :   Reza Nourai
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -61,16 +61,18 @@ class Blitter : public RefCountBase<Blitter> {
       uint32_t height);
 
  private:
+  enum PixelShaders { OneMSAA = 0, TwoOrMoreMSAA = 1, ShaderCount = 2 };
+
   Ptr<ID3D11Device1> Device;
   Ptr<ID3D11DeviceContext1> Context1;
   Ptr<ID3DDeviceContextState> BltState;
   Ptr<ID3D11InputLayout> IL;
   Ptr<ID3D11Buffer> VB;
   Ptr<ID3D11VertexShader> VS;
-  Ptr<ID3D11PixelShader> PS;
-  Ptr<ID3D11PixelShader> PS_MS2;
-  Ptr<ID3D11PixelShader> PS_MS4;
+
+  std::array<Ptr<ID3D11PixelShader>, PixelShaders::ShaderCount> PS;
   Ptr<ID3D11SamplerState> Sampler;
+  Ptr<ID3D11DepthStencilState> DepthState;
   bool AlreadyInitialized;
 
   struct BltVertex {
@@ -104,6 +106,16 @@ class D3DTextureWriter {
   // If copyTexture is true then we make a copy of the input texture before writing it to disk.
   // If texture is mapped for writing then you may want to use copyTexture because reading from it
   // will be slow.
+  Result GrabPixels(
+      ID3D11Texture2D* texture,
+      UINT subresource,
+      bool copyTexture,
+      const ovrTimewarpProjectionDesc* depthProj,
+      const float* linearDepthScale);
+
+  Result SavePixelsToBMP(const wchar_t* path);
+
+  // Simple composition of GrabPixels() and SavePixelsToBMP() functions
   Result SaveTexture(
       ID3D11Texture2D* texture,
       UINT subresource,
@@ -112,16 +124,20 @@ class D3DTextureWriter {
       const ovrTimewarpProjectionDesc* depthProj,
       const float* linearDepthScale);
 
+  static uint32_t* ConvertRGBA2BGRA(const uint32_t* src, uint32_t* dst, unsigned pixelCount);
+  static char* ConvertBGRA2RGB(const uint32_t* src, char* dst, unsigned pixelCount);
+
  protected:
   Ptr<ID3D11Device> device; // D3D11Device we use. Must match the textures we work with.
   Ptr<ID3D11Texture2D> textureCopy; // The last texture we used. Cached for future use.
   D3D11_TEXTURE2D_DESC textureCopyDesc; // This is a D3D11_TEXTURE2D_DESC. The description of
   // textureCopy, which allows us to know if we need to free
   // it and reallocate it anew.
-  std::vector<uint32_t> pixels; // Windows RGB .bmp files are actually in BGRA or BGR format.
+  std::pair<UINT, UINT> pixelsDimentions = {0, 0};
+  std::unique_ptr<uint32_t[]> pixels; // Windows RGB .bmp files are actually in BGRA or BGR format.
 };
-}
-} // namespace OVR::D3DUtil
+} // namespace D3DUtil
+} // namespace OVR
 
 #endif // OVR_OS_MS
 #endif // OVR_Util_D3D11_Blitter_h

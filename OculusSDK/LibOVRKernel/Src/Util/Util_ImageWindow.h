@@ -229,7 +229,7 @@ class ImageWindow {
 };
 
 #endif
-}
-} // namespace OVR::Util
+} // namespace Util
+} // namespace OVR
 
 #endif

@@ -5,7 +5,7 @@ Content     :   GL implementation for blitting, supporting scaling & rotation
 Created     :   February 24, 2015
 Authors     :   Reza Nourai
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -59,11 +59,12 @@ class Blitter : public RefCountBase<Blitter> {
   bool Blt(GLuint sourceTexId);
   bool
   Blt(GLuint sourceTexId, uint32_t topLeftX, uint32_t topLeftY, uint32_t width, uint32_t height);
+  bool BltCubemap(GLuint sourceTexId, GLuint tempTexId, uint32_t cubeMapSize);
 
  private:
   GLuint ReadFBO;
 };
-}
-} // namespace OVR::GLUtil
+} // namespace GLUtil
+} // namespace OVR
 
 #endif // OVR_Util_GL_Blitter_h

@@ -5,7 +5,7 @@ Content     :   Logging system
 Created     :   Oct 26, 2015
 Authors     :   Chris Taylor
 
-Copyright   :   Copyright 2015-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -24,8 +24,8 @@ limitations under the License.
 
 ************************************************************************************/
 
-#include "Logging_Library.h"
-#include "Logging_OutputPlugins.h"
+#include "Logging/Logging_Library.h"
+#include "Logging/Logging_OutputPlugins.h"
 
 #pragma warning(push)
 #pragma warning(disable: 4530) // C++ exception handler used, but unwind semantics are not enabled
@@ -38,6 +38,272 @@ limitations under the License.
 
 namespace ovrlog {
 
+
+  //--------------------------------------------------------------------------------------------------
+  // LogTime
+  //--------------------------------------------------------------------------------------------------
+
+  LogTime GetCurrentLogTime()
+  {
+#if defined(_WIN32)
+    SYSTEMTIME t;
+    ::GetLocalTime(&t);
+#else
+    time_t t = time(NULL);
+#endif
+
+    return t;
+  }
+
+
+//--------------------------------------------------------------------------------------------------
+// RepeatedMessageManager
+//--------------------------------------------------------------------------------------------------
+
+RepeatedMessageManager::RepeatedMessageManager()
+  : Mutex(), BusyInWrite(false), RecentMessageMap(), RepeatedMessageMap(), RepeatedMessageExceptionSet()
+{}
+
+void RepeatedMessageManager::PrintDeferredAggregateMessage(OutputWorker* outputWorker, RepeatedMessage& repeatedMessage){
+  // Don't lock Mutex, as it's expected to already be locked.
+
+  // Add the prefix to repeatedMessage->stream instead of writing it separately because a race 
+  // condition could otherwise cause another message to be printed between the two.
+  char prefixMessage[64]; // Impossible to overflow below.
+  size_t prefixLength = snprintf(prefixMessage, sizeof(prefixMessage), "[Aggregated %d times] ", 
+    repeatedMessage.aggregatedCount);
+  repeatedMessage.stream.insert(0, prefixMessage, prefixLength);
+
+  // We use WriteOption::DangerouslyIgnoreQueueLimit because it is very unlikely that these 
+  // messages could be generated in a runaway fashion. But they are an aggregate and so are more 
+  // important that their non-aggregated versions would be.
+  BusyInWrite = true;
+  outputWorker->Write(repeatedMessage.subsystemName.c_str(), repeatedMessage.messageLogLevel, 
+      repeatedMessage.stream.c_str(), false, WriteOption::DangerouslyIgnoreQueueLimit);
+  BusyInWrite = false;
+}
+
+RepeatedMessageManager::LogTimeMs RepeatedMessageManager::GetCurrentLogMillisecondTime() {
+    const LogTime currentLogTime = GetCurrentLogTime();
+    const LogTimeMs currentLogTimeMs = LogTimeToMillisecondTime(currentLogTime);
+    return currentLogTimeMs;
+}
+
+RepeatedMessageManager::LogTimeMs RepeatedMessageManager::LogTimeToMillisecondTime(const LogTime& logTime)
+{
+#if defined(_WIN32)
+    // Time is represented by SYSTEMTIME, which is a calendar time, with 1ms granularity.
+    // We need to quickly subtract two SYSTEMTIMEs, which is hard to do because it contains
+    // year, month, day, hour, minute, second, millisecond components. We could use the Windows
+    // SystemTimeToFileTime function to convert SYSTEMTIME to FILETIME, which is an absolute
+    // time with a single value, but that's an expensive conversion. 
+    LogTimeMs logTimeMs = (logTime.wHour * 3600000) + (logTime.wMinute * 60000) + 
+      (logTime.wSecond * 1000) + logTime.wMilliseconds;
+    return logTimeMs;
+#else
+    // Time is represented by time_t, which is seconds, and thus a granularity of 1000ms.
+    return (logTime * 1000);
+#endif
+}
+
+int64_t RepeatedMessageManager::GetLogMillisecondTimeDifference(LogTimeMs begin, LogTimeMs end)
+{
+#if defined(_WIN32)
+    if(end >= begin) // If the day didn't roll over between begin and end...
+      return (end - begin);
+    return (86400000 + (end - begin)); // Else assume exactly one day rolled over.
+#else
+    return (end - begin);
+#endif
+}
+
+  RepeatedMessageManager::PrefixHashType RepeatedMessageManager::GetHash(const char* p) {
+    // Fowler / Noll / Vo (FNV) Hash
+    // FNV is a great string hash for reduction of collisions, but the cost beneift is high.
+    // We can get away with a fairly poor string hash here which is very fast.
+    //
+    PrefixHashType hash(2166136261U);
+    const char* pEnd = (p + messagePrefixLength);
+    while (*p && (p < pEnd)) {
+      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      hash ^= (uint8_t)*p++;
+    }
+    return hash;
+
+    // uint32_t hash(0); // To do: See if this hash is too poor.
+    // const char* pEnd = (p + messagePrefixLength);
+    // while(*p && (p < pEnd))
+    //    hash += (uint8_t)*p++;
+    // return hash;
+  }
+
+RepeatedMessageManager::HandleResult
+RepeatedMessageManager::HandleMessage(const char* subsystemName, Level messageLogLevel, 
+  const char* stream)
+{
+  std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+  if (BusyInWrite) // If we are here due to our own call of OutputWorker::Write from our Poll func..
+    return HandleResult::Passed;
+
+  PrefixHashType prefixHash = GetHash(stream);
+
+  // Check to see if we have this particular message in an exception list.
+  if (RepeatedMessageExceptionSet.find(prefixHash) != RepeatedMessageExceptionSet.end())
+    return HandleResult::Passed;
+
+  // We will need the current time below for all pathways.
+  const LogTimeMs currentLogTimeMs = GetCurrentLogMillisecondTime();
+
+  // First look at our repeated messages. This is a container of known repeating messages.
+  auto itRepeated = RepeatedMessageMap.find(prefixHash);
+
+  if (itRepeated != RepeatedMessageMap.end()) { // If this is a message that's already repeating...
+    RepeatedMessage& repeatedMessage = itRepeated->second;
+
+    // Assume subsystemName == repeatedMessage->subsystemName, though theoretically it's possible
+    // that two subsystems generate the same prefix string. Let's worry about that if we see it.
+    //
+    // Assume messageLogLevel == repeatedMessage->messageLogLevel for the purposes of handling
+    // repeated messages. It's possible that a subsystem may generate the same message string
+    // but with different log levels, but we've never seen that, and it may not be significant
+    // with respect to handling repeating anyway. Let's worry about that if we see it.
+    const LogTimeMs logTimeDifferenceMs = 
+      GetLogMillisecondTimeDifference(repeatedMessage.lastTimeMs, currentLogTimeMs);
+
+    if (logTimeDifferenceMs < maxDeferrableDetectionTimeMs) { // If this message was soon after
+      repeatedMessage.lastTimeMs = currentLogTimeMs;          // the last one...
+
+      // We actally print the first few seemingly repeated messages before deferring them.
+      if (repeatedMessage.printedCount < printedRepeatCount) {
+        repeatedMessage.printedCount++;
+        return HandleResult::Passed;
+      }
+
+      // Else we aggregate it, and won't print it until later with a summary printing.
+      // If repeatedMessage.aggregatedCount >= maxDeferredMessages, then  copy stream to 
+      // repeatedMessage.stream, in order to print the most recent variation of this repeat when 
+      // the aggregated print is done.
+      if (++repeatedMessage.aggregatedCount >= maxDeferredMessages)
+        repeatedMessage.stream = stream;
+
+      return HandleResult::Aggregated;
+    }
+    // Else the repeated message was old and we don't don't consider this a repeat.
+    // Don't erase the entry from RepeatedMessageMap here, as we still need to do a final 
+    // print of the aggregated message before removing it. We'll handle that in the Poll function.
+  }
+  else {
+    // Else this message wasn't known to be previously repeating, but maybe it's the first repeat
+    // we are encountering. Check the RecentMessageMap for this.
+    auto itRecent = RecentMessageMap.find(prefixHash);
+
+    if (itRecent != RecentMessageMap.end()) { // If it looks like a repeat of something recent...
+      RepeatedMessageMap[prefixHash] = RepeatedMessage(
+        subsystemName, messageLogLevel, stream, currentLogTimeMs, currentLogTimeMs, 0);
+
+      // No need to keep it in the RecentMessageMap any more, since it's now classified as repeat.
+      RecentMessageMap.erase(itRecent);
+    }
+    else {
+      // Else add it to RecentMessageMap. Old RecentMessageMap entries will be removed by Poll().
+      RecentMessageMap[prefixHash] = RecentMessage{ currentLogTimeMs };
+    }
+  }
+
+  return HandleResult::Passed;
+}
+
+void RepeatedMessageManager::Poll(OutputWorker* outputWorker) {
+  std::vector<RepeatedMessage> messagesToPrint;
+
+  {
+    std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+    if (RecentMessageMap.size() > (recentMessageCount * 2)) {
+      // Prune the oldest messages out of RecentMessageMap until 
+      // RecentMessageMap.size() == recentMessageCount. Unfortunately, RecentMessageMap is an
+      // unsorted hash container, so we can't quickly find the oldest N messages. We can solve 
+      // this by doing a copy of iterators to an array, sort, erase first N iterators. A faster 
+      // solution would be to keep a std::queue of iterators that were added to the map, though 
+      // that results in some complicated code. Maybe we'll do that, but let's do the sort 
+      // solution first.
+      const size_t arrayCapacity = (recentMessageCount * 3);
+      RecentMessageMapType::iterator itArray[arrayCapacity]; // Avoid memory allocation.
+      size_t itArraySize = 0;
+
+      for (RecentMessageMapType::iterator it = RecentMessageMap.begin();
+        (it != RecentMessageMap.end()) && (itArraySize < arrayCapacity);
+        ++it) {
+        itArray[itArraySize++] = it;
+      }
+
+      std::sort(
+        itArray,
+        itArray + itArraySize, // Put the oldest at the end of the array.
+        [](const RecentMessageMapType::iterator& it1,
+          const RecentMessageMapType::iterator& it2) -> bool {
+        return (it2->second.timeMs < it1->second.timeMs); // Sort newest to oldest.
+      });
+
+      for (size_t i = 0; i < itArraySize; ++i)
+        RecentMessageMap.erase(itArray[i]);
+    }
+
+    // Currently we go through the entire RepeatedMessageMap every time we are here, though we 
+    // have a purgeDeferredMessageTimeMs constant which we have to make this more granular, for 
+    // efficiency purposed. To do.
+    const LogTimeMs currentLogTimeMs = GetCurrentLogMillisecondTime();
+
+    for (auto it = RepeatedMessageMap.begin(); it != RepeatedMessageMap.end();) {
+      RepeatedMessage& repeatedMessage = it->second;
+      LogTimeMs logTimeDifferenceMs =
+        GetLogMillisecondTimeDifference(repeatedMessage.lastTimeMs, currentLogTimeMs);
+
+      // If this message hasn't repeated in a while...
+      if (logTimeDifferenceMs > maxDeferrableDetectionTimeMs) {
+        // Print an aggregate result for this entry before removing it.
+        // Since we have already printed the first <printedRepeatCount> of a given repeated message,
+        // we do an aggregate print only if further printings were called for.
+        if (repeatedMessage.aggregatedCount) { // If there are any aggregated messages deferred...
+          // This will print the first variation of the string that was encountered.
+          // We can move the message instead of copy because we won't need it any more after this.
+          messagesToPrint.emplace_back(std::move(repeatedMessage));
+        }
+
+        it = RepeatedMessageMap.erase(it);
+        continue;
+      }
+      else if (repeatedMessage.aggregatedCount >= maxDeferredMessages) {
+        messagesToPrint.emplace_back(repeatedMessage);
+        repeatedMessage.printedCount += repeatedMessage.aggregatedCount;
+        repeatedMessage.aggregatedCount = 0; // Reset this for a new round of aggregation.
+      }
+      ++it;
+    }
+  } // lock
+
+  // We need to print these messages outside our locked Mutex because printing of these is
+  // calling out to external code which itself has mutexes and thus we need to avoid deadlock.
+  for (auto& repeatedMessage : messagesToPrint)
+    PrintDeferredAggregateMessage(outputWorker, repeatedMessage);
+}
+
+void RepeatedMessageManager::AddRepeatedMessageException(const char* messagePrefix) {
+  std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+  PrefixHashType prefixHash = GetHash(messagePrefix);
+  RepeatedMessageExceptionSet.insert(prefixHash);
+}
+
+void RepeatedMessageManager::RemoveRepeatedMessageException(const char* messagePrefix) {
+  std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+  PrefixHashType prefixHash = GetHash(messagePrefix);
+  auto it = RepeatedMessageExceptionSet.find(prefixHash);
+  if (it != RepeatedMessageExceptionSet.end())
+    RepeatedMessageExceptionSet.erase(it);
+}
 
 //-----------------------------------------------------------------------------
 // Channel
@@ -142,6 +408,14 @@ void ShutdownLogging()
     {
         ovrlog::OutputWorker::GetInstance()->Stop();
     }
+}
+
+void RestartLogging()
+{
+  if (OutputWorkerInstValid)
+  {
+    ovrlog::OutputWorker::GetInstance()->Start();
+  }
 }
 
 
@@ -375,7 +649,7 @@ void OutputWorker::Stop()
 
 
 
-static int GetTimestamp(char* buffer, int bufferBytes, const OutputWorker::LogTime& logTime)
+static int GetTimestamp(char* buffer, int bufferBytes, const LogTime& logTime)
 {
 #if defined(_WIN32)
     // GetDateFormat and GetTimeFormat returns the number of characters written to the
@@ -449,21 +723,8 @@ static int GetTimestamp(char* buffer, int bufferBytes, const OutputWorker::LogTi
 // so don't bother complaining there isn't enough length checking.
 static int GetTimestamp(char* buffer, int bufferBytes)
 {
-    OutputWorker::LogTime time = OutputWorker::GetCurrentLogTime();
+    LogTime time = GetCurrentLogTime();
     return GetTimestamp(buffer, bufferBytes, time);
-}
-
-
-OutputWorker::LogTime OutputWorker::GetCurrentLogTime()
-{
-    #if defined(_WIN32)
-        SYSTEMTIME t;
-        ::GetLocalTime(&t);
-    #else
-        time_t t = time(NULL);
-    #endif
-    
-    return t;
 }
 
 
@@ -533,14 +794,15 @@ void OutputWorker::AppendHeader(char* buffer, size_t bufferBytes, Level level, c
     const char* initial = "";
     switch (level)
     {
-    case Level::Trace:   initial = " {TRACE}   ["; break;
-    case Level::Debug:   initial = " {DEBUG}   ["; break;
-    case Level::Info:    initial = " {INFO}    ["; break;
-    case Level::Warning: initial = " {WARNING} ["; break;
-    case Level::Error:   initial = " {!ERROR!} ["; break;
-    default:             initial = " {???}     ["; break;
+    case Level::Disabled: initial = " {DISABLED}["; break; // This typically should not occur, but we have here for consistency.
+    case Level::Trace:    initial = " {TRACE}   ["; break;
+    case Level::Debug:    initial = " {DEBUG}   ["; break;
+    case Level::Info:     initial = " {INFO}    ["; break;
+    case Level::Warning:  initial = " {WARNING} ["; break;
+    case Level::Error:    initial = " {!ERROR!} ["; break;
+    default:              initial = " {???}     ["; break;
     }
-    static_assert(Level::Count == static_cast<Level>(5), "Needs updating");
+    static_assert(Level::Count == static_cast<Level>(6), "Needs updating");
 
     WriteAdvanceStrCpy(buffer, bufferBytes, initial);
     WriteAdvanceStrCpy(buffer, bufferBytes, subsystemName);
@@ -561,6 +823,9 @@ OVR_THREAD_FUNCTION_TYPE OutputWorker::WorkerThreadEntrypoint_(void* vworker)
 
 void OutputWorker::ProcessQueuedMessages()
 {
+    // Potentially trigger aggregated repeating messages.
+    RepeatedMessageManagerInstance.Poll(this);
+
     static const int TempBufferBytes = 1024; // 1 KiB
     char HeaderBuffer[TempBufferBytes];
 
@@ -621,14 +886,14 @@ void OutputWorker::ProcessQueuedMessages()
 
                 // Construct header on top of timestamp buffer
                 AppendHeader(HeaderBuffer + timestampLength, sizeof(HeaderBuffer) - timestampLength,
-                    message->MessageLogLevel, message->SubsystemName);
+                    message->MessageLogLevel, message->SubsystemName.Get());
 
                 // For each plugin,
                 for (auto& plugin : Plugins)
                 {
                     plugin->Write(
                         message->MessageLogLevel,
-                        message->SubsystemName,
+                        message->SubsystemName.Get(),
                         HeaderBuffer,
                         message->Buffer.c_str());
                 }
@@ -734,6 +999,14 @@ void OutputWorker::Write(const char* subsystemName, Level messageLogLevel, const
     {
         Locker locker(WorkQueueLock);
 
+        // Check to see if this message looks like it's repeat message which we want to aggregate
+        // in order to avoid log spam of the same similar message repeatedly.
+        if (RepeatedMessageManagerInstance.HandleMessage(subsystemName, messageLogLevel, stream) == 
+            RepeatedMessageManager::HandleResult::Aggregated)
+        {
+          return;
+        }
+
         if (option != WriteOption::DangerouslyIgnoreQueueLimit &&
             WorkQueueSize >= WorkQueueLimit)
         {
@@ -780,14 +1053,14 @@ void OutputWorker::Write(const char* subsystemName, Level messageLogLevel, const
 //-----------------------------------------------------------------------------
 // QueuedLogMessage
 
-OutputWorker::QueuedLogMessage::QueuedLogMessage(const char* subsystemName, Level messageLogLevel, const char* stream, const OutputWorker::LogTime& time)
+OutputWorker::QueuedLogMessage::QueuedLogMessage(const char* subsystemName, Level messageLogLevel, const char* stream, const LogTime& time) :
+    SubsystemName(subsystemName),
+    MessageLogLevel(messageLogLevel),
+    Buffer(stream),
+    Time(time),
+    Next(nullptr),
+    FlushEvent(nullptr)
 {
-    MessageLogLevel = messageLogLevel;
-    SubsystemName = subsystemName;
-    Buffer = stream;
-    Time = time;
-    Next = nullptr;
-    FlushEvent = nullptr;
 }
 
 void Channel::GetFunctionPointers()
@@ -820,14 +1093,9 @@ void Channel::GetFunctionPointers()
     }
 }
 
-Channel::Channel(const char* nameString) :
-    MinimumOutputLevel((Log_Level_t)Level::Info),
-    SubsystemName(nameString),
-    UserOverrodeMinimumOutputLevel(false)
+void Channel::registerNode()
 {
-    SubsystemName = nameString;
-
-    Node.SubsystemName = SubsystemName;
+    Node.SubsystemName = SubsystemName.Get();
     Node.Level = &MinimumOutputLevel;
     Node.UserOverrodeMinimumOutputLevel = &UserOverrodeMinimumOutputLevel;
 
@@ -836,22 +1104,23 @@ Channel::Channel(const char* nameString) :
     ConfiguratorRegister(&Node);
 }
 
-Channel::Channel(const Channel& other)
+Channel::Channel(const char* nameString) :
+    SubsystemName(nameString),
+    MinimumOutputLevel((Log_Level_t)DefaultMinimumOutputLevel),
+    UserOverrodeMinimumOutputLevel(false)
 {
-    SubsystemName = other.SubsystemName;
-    MinimumOutputLevel = other.MinimumOutputLevel;
-    UserOverrodeMinimumOutputLevel = other.UserOverrodeMinimumOutputLevel;
+    //OutputDebugStringA((std::string(">>>ctor Channel::Channel ") + SubsystemName.Get() + "\n").c_str());
+    registerNode();
+}
 
-    {
-        Locker locker(PrefixLock);
-        Prefix = other.Prefix;
-    }
-
-    Node.SubsystemName = SubsystemName;
-    Node.Level = &MinimumOutputLevel;
-    Node.UserOverrodeMinimumOutputLevel = &UserOverrodeMinimumOutputLevel;
-
-    ConfiguratorRegister(&Node);
+Channel::Channel(const Channel& other) :
+    SubsystemName(other.SubsystemName),
+    MinimumOutputLevel(other.MinimumOutputLevel),
+    Prefix(other.GetPrefix()),
+    UserOverrodeMinimumOutputLevel(other.UserOverrodeMinimumOutputLevel)
+{
+    //OutputDebugStringA((std::string(">>>copy ctor Channel::Channel ") + SubsystemName.Get() + "\n").c_str());
+    registerNode();
 }
 
 Channel::~Channel()
@@ -876,18 +1145,13 @@ void Channel::SetMinimumOutputLevel(Level newLevel)
 {
     SetMinimumOutputLevelNoSave(newLevel);
 
-    ConfiguratorOnChannelLevelChange(SubsystemName, MinimumOutputLevel);
+    ConfiguratorOnChannelLevelChange(SubsystemName.Get(), MinimumOutputLevel);
 }
 
 void Channel::SetMinimumOutputLevelNoSave(Level newLevel)
 {
     MinimumOutputLevel = (Log_Level_t)newLevel;
     UserOverrodeMinimumOutputLevel = true;
-}
-
-const char* Channel::GetName() const
-{
-    return SubsystemName;
 }
 
 Level Channel::GetMinimumOutputLevel() const
@@ -898,11 +1162,11 @@ Level Channel::GetMinimumOutputLevel() const
 //-----------------------------------------------------------------------------
 // Conversion functions
 
-#ifdef _WIN32
-
 template<>
 void LogStringize(LogStringBuffer& buffer, const wchar_t* const & first)
 {
+#ifdef _WIN32
+
     // Use Windows' optimized multi-byte UTF8 conversion function for performance.
     // Returns the number of bytes used by the conversion, including the null terminator
     // since -1 is passed in for the input string length.
@@ -951,9 +1215,14 @@ void LogStringize(LogStringBuffer& buffer, const wchar_t* const & first)
 
         delete[] dynamicBuffer;
     }
-}
+
+#else
+
+    fprintf(stderr, __FILE__ "::[%s] Not implemented.\n", __func__);
+    assert(0); // Unimplemented
 
 #endif // _WIN32
+}
 
 
 //-----------------------------------------------------------------------------

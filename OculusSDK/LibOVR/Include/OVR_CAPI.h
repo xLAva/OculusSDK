@@ -1,7 +1,7 @@
 /************************************************************************************
  \file      OVR_CAPI.h
  \brief     C Interface to the Oculus PC SDK tracking and rendering library.
- \copyright Copyright 2014 Oculus VR, LLC All Rights reserved.
+ \copyright Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
  ************************************************************************************/
 
 // We don't use version numbers within OVR_CAPI_h, as all versioned variations
@@ -16,6 +16,7 @@
 #if !defined(_WIN32)
 #include <sys/types.h>
 #endif
+
 
 
 #include <stdint.h>
@@ -269,13 +270,19 @@ typedef char ovrBool; ///< Boolean type
 // ***** Simple Math Structures
 
 /// A RGBA color with normalized float components.
-typedef struct OVR_ALIGNAS(4) ovrColorf_ { float r, g, b, a; } ovrColorf;
+typedef struct OVR_ALIGNAS(4) ovrColorf_ {
+  float r, g, b, a;
+} ovrColorf;
 
 /// A 2D vector with integer components.
-typedef struct OVR_ALIGNAS(4) ovrVector2i_ { int x, y; } ovrVector2i;
+typedef struct OVR_ALIGNAS(4) ovrVector2i_ {
+  int x, y;
+} ovrVector2i;
 
 /// A 2D size with integer components.
-typedef struct OVR_ALIGNAS(4) ovrSizei_ { int w, h; } ovrSizei;
+typedef struct OVR_ALIGNAS(4) ovrSizei_ {
+  int w, h;
+} ovrSizei;
 
 /// A 2D rectangle with a position and size.
 /// All components are integers.
@@ -285,16 +292,29 @@ typedef struct OVR_ALIGNAS(4) ovrRecti_ {
 } ovrRecti;
 
 /// A quaternion rotation.
-typedef struct OVR_ALIGNAS(4) ovrQuatf_ { float x, y, z, w; } ovrQuatf;
+typedef struct OVR_ALIGNAS(4) ovrQuatf_ {
+  float x, y, z, w;
+} ovrQuatf;
 
 /// A 2D vector with float components.
-typedef struct OVR_ALIGNAS(4) ovrVector2f_ { float x, y; } ovrVector2f;
+typedef struct OVR_ALIGNAS(4) ovrVector2f_ {
+  float x, y;
+} ovrVector2f;
 
 /// A 3D vector with float components.
-typedef struct OVR_ALIGNAS(4) ovrVector3f_ { float x, y, z; } ovrVector3f;
+typedef struct OVR_ALIGNAS(4) ovrVector3f_ {
+  float x, y, z;
+} ovrVector3f;
+
+/// A 4D vector with float components.
+typedef struct OVR_ALIGNAS(4) ovrVector4f_ {
+  float x, y, z, w;
+} ovrVector4f;
 
 /// A 4x4 matrix with float elements.
-typedef struct OVR_ALIGNAS(4) ovrMatrix4f_ { float M[4][4]; } ovrMatrix4f;
+typedef struct OVR_ALIGNAS(4) ovrMatrix4f_ {
+  float M[4][4];
+} ovrMatrix4f;
 
 /// Position and orientation together.
 /// The coordinate system used is right-handed Cartesian.
@@ -373,6 +393,13 @@ typedef enum ovrTrackingCaps_ {
   ovrTrackingCap_Position = 0x0040, ///< Supports positional tracking.
   ovrTrackingCap_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
 } ovrTrackingCaps;
+
+/// Optional extensions
+typedef enum ovrExtensions_ {
+  ovrExtension_TextureLayout_Octilinear = 0, ///< Enable before first layer submission.
+  ovrExtension_Count, ///< \internal Sanity checking
+  ovrExtension_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
+} ovrExtensions;
 
 /// Specifies which eye is being used for rendering.
 /// This type explicitly does not include a third "NoStereo" monoscopic option,
@@ -587,7 +614,9 @@ typedef struct OVR_ALIGNAS(4) ovrTimewarpProjectionDesc_ {
 
 
 /// Contains the data necessary to properly calculate position info for various layer types.
-/// - HmdToEyePose is the same value pair provided in ovrEyeRenderDesc.
+/// - HmdToEyePose is the same value-pair provided in ovrEyeRenderDesc. Modifying this value is
+///   suggested only if the app is forcing monoscopic rendering and requires that all layers
+///   including quad layers show up in a monoscopic fashion.
 /// - HmdSpaceToWorldScaleInMeters is used to scale player motion into in-application units.
 ///   In other words, it is how big an in-application unit is in the player's physical meters.
 ///   For example, if the application uses inches as its units then HmdSpaceToWorldScaleInMeters
@@ -638,6 +667,7 @@ typedef enum ovrTextureBindFlags_ {
   /// This flag cannot be combined with ovrTextureBind_DX_RenderTarget.
   ovrTextureBind_DX_DepthStencil = 0x0004,
 
+
   ovrTextureBind_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
 } ovrTextureBindFlags;
 
@@ -653,6 +683,7 @@ typedef enum ovrTextureFormat_ {
   OVR_FORMAT_R8G8B8A8_UNORM = 4,
   OVR_FORMAT_R8G8B8A8_UNORM_SRGB = 5,
   OVR_FORMAT_B8G8R8A8_UNORM = 6,
+  OVR_FORMAT_B8G8R8_UNORM = 27,
   OVR_FORMAT_B8G8R8A8_UNORM_SRGB = 7, ///< Not supported for OpenGL applications
   OVR_FORMAT_B8G8R8X8_UNORM = 8, ///< Not supported for OpenGL applications
   OVR_FORMAT_B8G8R8X8_UNORM_SRGB = 9, ///< Not supported for OpenGL applications
@@ -677,6 +708,8 @@ typedef enum ovrTextureFormat_ {
   OVR_FORMAT_BC7_UNORM = 23,
   OVR_FORMAT_BC7_UNORM_SRGB = 24,
 
+
+  OVR_FORMAT_LAST,
   OVR_FORMAT_ENUMSIZE = 0x7fffffff ///< \internal Force type int32_t.
 } ovrTextureFormat;
 
@@ -703,6 +736,12 @@ typedef enum ovrTextureMiscFlags_ {
   /// mirroring or other redirection of any frame containing this contents
   ovrTextureMisc_ProtectedContent = 0x0004,
 
+  /// Automatically generate and use the mip chain in composition on each submission.
+  /// Mips are regenerated from highest quality level, ignoring other pre-existing mip levels.
+  /// Not supported for depth or compressed (BC) formats.
+  ovrTextureMisc_AutoGenerateMips = 0x0008,
+
+
   ovrTextureMisc_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
 } ovrTextureFlags;
 
@@ -712,24 +751,61 @@ typedef enum ovrTextureMiscFlags_ {
 /// \see ovr_CreateTextureSwapChainGL
 ///
 typedef struct ovrTextureSwapChainDesc_ {
-  ovrTextureType Type;
+  ovrTextureType Type; ///< Must be ovrTexture_2D
   ovrTextureFormat Format;
   int ArraySize; ///< Must be 6 for ovrTexture_Cube, 1 for other types.
   int Width;
   int Height;
   int MipLevels;
-  int SampleCount; ///< Only supported with depth textures.
+  int SampleCount;
   ovrBool StaticImage; ///< Not buffered in a chain. For images that don't change
-  unsigned int MiscFlags; ///< ovrTextureFlags
-  unsigned int BindFlags; ///< ovrTextureBindFlags. Not used for GL.
+  OVR_ALIGNAS(4) unsigned int MiscFlags; ///< ovrTextureFlags
+  OVR_ALIGNAS(4) unsigned int BindFlags; ///< ovrTextureBindFlags. Not used for GL.
 } ovrTextureSwapChainDesc;
 
+/// Bit flags used as part of ovrMirrorTextureDesc's MirrorOptions field.
+///
+/// \see ovr_CreateMirrorTextureWithOptionsDX
+/// \see ovr_CreateMirrorTextureWithOptionsGL
+/// \see ovr_CreateMirrorTextureWithOptionsVk
+///
+typedef enum ovrMirrorOptions_ {
+  /// By default the mirror texture will be:
+  /// * Pre-distortion (i.e. rectilinear)
+  /// * Contain both eye textures
+  /// * Exclude Guardian, Notifications, System Menu GUI
+  ovrMirrorOption_Default = 0x0000,
+
+  /// Retrieves the barrel distorted texture contents instead of the rectilinear one
+  /// This is only recommended for debugging purposes, and not for final desktop presentation
+  ovrMirrorOption_PostDistortion = 0x0001,
+
+  /// Since ovrMirrorOption_Default renders both eyes into the mirror texture,
+  /// these two flags are exclusive (i.e. cannot use them simultaneously)
+  ovrMirrorOption_LeftEyeOnly = 0x0002,
+  ovrMirrorOption_RightEyeOnly = 0x0004,
+
+  /// Shows the boundary system aka Guardian on the mirror texture
+  ovrMirrorOption_IncludeGuardian = 0x0008,
+
+  /// Shows system notifications the user receives on the mirror texture
+  ovrMirrorOption_IncludeNotifications = 0x0010,
+
+  /// Shows the system menu (triggered by hitting the Home button) on the mirror texture
+  ovrMirrorOption_IncludeSystemGui = 0x0020,
+
+  /// Forces mirror output to use max symmetric FOV instead of asymmetric full FOV used by HMD.
+  /// Only valid for rectilinear mirrors i.e. using ovrMirrorOption_PostDistortion with
+  /// ovrMirrorOption_ForceSymmetricFov will result in ovrError_InvalidParameter error.
+  ovrMirrorOption_ForceSymmetricFov = 0x0040,
+
+
+  ovrMirrorOption_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
+} ovrMirrorOptions;
 
 /// Description used to create a mirror texture.
 ///
-/// \see ovr_CreateMirrorTextureDX
 /// \see ovr_CreateMirrorTextureWithOptionsDX
-/// \see ovr_CreateMirrorTextureGL
 /// \see ovr_CreateMirrorTextureWithOptionsGL
 /// \see ovr_CreateMirrorTextureWithOptionsVk
 ///
@@ -746,16 +822,117 @@ typedef struct ovrMirrorTextureData* ovrMirrorTexture;
 
 //-----------------------------------------------------------------------------------
 
+/// Fov-stencil mesh for assisting in rendering efficiency for clients using EyeFov layers
+
+/// A fov-stencil mesh is used to cull out the parts of the eye render target used in
+/// ovrLayerType_EyeFov & ovrLayerType_EyeFovDepth layers that would not normally be visible to
+/// the user wearing the HMD.
+///
+/// A rasterized eye render target is rectangular, but the parts of the render target visible to the
+/// user do not necessarily follow a rectangular region. This is where the fov-stencil mesh
+/// helps designate the boundaries of the visible parts for a given eye render target.
+///
+/// To make effective use of this mesh, the client should render the mesh before kicking off any
+/// other rendering work. Ideally the mesh would be rendered at the near-depth plane distance, or
+/// into the stencil buffer right after clearing the depth-stencil buffer. The choice of using
+/// depth vs. stencil is left up to the client, but the client should make sure that the mesh is
+/// rendered in a way that it can make use of Hierarchical-Z or Hierarchical-Stencil for better
+/// performance on rejected geometry post-vertex shading.
+
+/// Viewport stencil types provided by the ovr_GetFovStencil call.
+/// \see ovr_GetFovStencil
+typedef enum ovrFovStencilType_ {
+  ovrFovStencil_HiddenArea = 0, ///< Triangle list covering parts that are hidden to users
+  ovrFovStencil_VisibleArea = 1, ///< Triangle list covering parts that are visible to users
+  ovrFovStencil_BorderLine = 2, ///< Line list that draws the boundary visible to users
+  ovrFovStencil_VisibleRectangle = 3, ///< Axis-aligned rectangle fit in visible region
+                                      ///< 4x vertices: TopLeft, TopRight, BottomRight, BottomLeft
+
+  ovrFovStencilType_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
+} ovrFovStencilType;
+
+/// Identifies flags used by ovrFovStencilDesc and which are passed to ovr_GetFovStencil.
+/// \see ovrFovStencilDesc
+typedef enum ovrFovStencilFlags_ {
+
+  /// When used, flips the Y component of the provided 2D mesh coordinates, such that Y increases
+  /// upwards. When not used, places mesh origin at top-left where Y increases downwards.
+  ovrFovStencilFlag_MeshOriginAtBottomLeft = 0x01,
+
+  ovrFovStencilFlag_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
+} ovrFovStencilFlags;
+
+/// Fov-stencil mesh descriptor passed into the function ovr_GetFovStencil
+/// \see ovr_GetFovStencil
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrFovStencilDesc_ {
+  ovrFovStencilType StencilType;
+  uint32_t StencilFlags; ///< Bit flag combination of ovrFovStencilFlags
+  ovrEyeType Eye;
+  ovrFovPort FovPort; ///< Typically FOV obtained from ovrEyeRenderDesc
+  ovrQuatf HmdToEyeRotation; ///< Typically HmdToEyePose.Orientation obtained from ovrEyeRenderDesc
+                             ///< Note: Currently unsupported, always treated as identity
+} ovrFovStencilDesc;
+
+/// Contains the data for the fov-stencil mesh. Parts of the struct are filled by the caller
+/// while some parts are filled by the SDK.
+/// \see ovr_GetFovStencil
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrFovStencilMeshBuffer_ {
+  /// Vertex info
+  int AllocVertexCount; ///< To be filled in by caller of ovr_GetFovStencil
+  int UsedVertexCount; ///< To be filled in by SDK and returned to caller
+  ovrVector2f* VertexBuffer; ///< To be allocated by caller and filled in by SDK
+
+  /// Index info
+  int AllocIndexCount; ///< To be filled in by caller of ovr_GetFovStencil
+  int UsedIndexCount; ///< To be filled in by SDK and returned to caller
+  uint16_t* IndexBuffer; ///< To be allocated by caller and filled in by SDK
+} ovrFovStencilMeshBuffer;
+
+/// Returns a viewport stencil mesh to be used for defining the area or outline the user
+/// can see through the lens on an area defined by a given ovrFovPort.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+/// \param[in] fovStencilDesc Info provided by caller necessary to generate a stencil mesh.
+/// \param[in] meshBuffer Mesh buffer to be partially filled in and returned by the SDK.
+///
+/// \return Returns an ovrResult indicating success or failure. In the case of
+///         failure, use ovr_GetLastErrorInfo to get more information.
+///         Return values include but aren't limited to:
+///     - ovrSuccess: Completed successfully.
+///     - ovrError_ServiceConnection: The service connection was lost and the application
+///       must destroy the session.
+///     - ovrError_InvalidParameter: One or more of the parameters
+///
+/// To find out how big the vertex and index buffers in meshBuffer buffer should be, first call
+/// this function setting AllocVertexCount & AllocIndexCount to 0 while also sending in nullptr
+/// for VertexBuffer & IndexBuffer. The SDK will populate UsedVertexCount & UsedIndexCount values.
+///
+/// If Alloc*Count fields in meshBuffer are smaller than the expected Used*Count fields,
+/// (except when they are 0) then the SDK will return ovrError_InvalidParameter and leave
+/// VertexBuffer and IndexBuffer untouched.
+///
+/// 2D positions provided in the buffer will be in the [0,1] range where Y increases downward,
+/// similar to texture-UV space. If Y coordinates need to be flipped upside down, use the
+/// ovrFovStencilFlag_MeshOriginAtBottomLeft.
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_GetFovStencil(
+    ovrSession session,
+    const ovrFovStencilDesc* fovStencilDesc,
+    ovrFovStencilMeshBuffer* meshBuffer);
+
+//-----------------------------------------------------------------------------------
+
 /// Describes button input types.
 /// Button inputs are combined; that is they will be reported as pressed if they are
 /// pressed on either one of the two devices.
 /// The ovrButton_Up/Down/Left/Right map to both XBox D-Pad and directional buttons.
 /// The ovrButton_Enter and ovrButton_Return map to Start and Back controller buttons, respectively.
 typedef enum ovrButton_ {
-  /// A button on XBox controllers and right Touch controller. Select button on Oculus Remote.
+  /// A button on XBox controllers and right Touch controller. Not present on Oculus Remote.
   ovrButton_A = 0x00000001,
 
-  /// B button on XBox controllers and right Touch controller. Back button on Oculus Remote.
+  /// B button on XBox controllers and right Touch controller. Not present on Oculus Remote.
   ovrButton_B = 0x00000002,
 
   /// Right thumbstick on XBox controllers and Touch controllers. Not present on Oculus Remote.
@@ -790,11 +967,12 @@ typedef enum ovrButton_ {
   ovrButton_Right = 0x00080000,
 
   /// Start on XBox 360 controller. Menu on XBox One controller and Left Touch controller.
+  /// Select button on Oculus Remote.
   /// Should be referred to as the Menu button in user-facing documentation.
   ovrButton_Enter = 0x00100000,
 
-  /// Back on Xbox 360 controller. View button on XBox One controller. Not present on Touch
-  /// controllers or Oculus Remote.
+  /// Back on Xbox 360 controller and Oculus Remote. View button on XBox One controller.
+  /// Not present on Touch controllers.
   ovrButton_Back = 0x00200000,
 
   /// Volume button on Oculus Remote. Not present on XBox or Touch controllers.
@@ -1057,6 +1235,7 @@ typedef struct ovrInputState_ {
   /// -1.0f to 1.0f
   /// No deadzone or filter
   ovrVector2f ThumbstickRaw[ovrHand_Count];
+
 } ovrInputState;
 
 typedef struct ovrCameraIntrinsics_ {
@@ -1101,6 +1280,10 @@ typedef enum ovrCameraStatusFlags_ {
 
   /// Bit set when the camera has tried & passed calibration
   ovrCameraStatus_Calibrated = 0x8,
+
+  /// Bit set when the camera is capturing
+  ovrCameraStatus_Capturing = 0x10,
+
   ovrCameraStatus_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
 } ovrCameraStatusFlags;
 
@@ -1133,10 +1316,10 @@ typedef struct ovrCameraExtrinsics_ {
   double AdditionalLatencySeconds;
 
 } ovrCameraExtrinsics;
-
+#define OVR_MAX_EXTERNAL_CAMERA_COUNT 16
 #define OVR_EXTERNAL_CAMERA_NAME_SIZE 32
 typedef struct ovrExternalCamera_ {
-  char Name[OVR_EXTERNAL_CAMERA_NAME_SIZE];
+  char Name[OVR_EXTERNAL_CAMERA_NAME_SIZE]; // camera identifier: vid + pid + serial number etc.
   ovrCameraIntrinsics Intrinsics;
   ovrCameraExtrinsics Extrinsics;
 } ovrExternalCamera;
@@ -1169,6 +1352,10 @@ typedef enum ovrInitFlags_ {
   /// This client will alternate between VR and 2D rendering.
   /// Typically set by game engine editors and VR-enabled web browsers.
   ovrInit_MixedRendering = 0x00000020,
+
+  /// This client is aware of ovrSessionStatus focus states (e.g. ovrSessionStatus::HasInputFocus),
+  /// and responds to them appropriately (e.g. pauses and stops drawing hands when lacking focus).
+  ovrInit_FocusAware = 0x00000040,
 
 
 
@@ -1493,7 +1680,21 @@ typedef struct ovrSessionStatus_ {
   /// ovr_RecenterTrackingOrigin or ovr_SpecifyTrackingOrigin.
   ovrBool ShouldRecenter;
 
-  ovrBool Internal[2];
+  /// True if the application is the foreground application and receives input (e.g. Touch
+  /// controller state). If this is false then the application is in the background (but possibly
+  /// still visible) should hide any input representations such as hands.
+  ovrBool HasInputFocus;
+
+  /// True if a system overlay is present, such as a dashboard. In this case the application
+  /// (if visible) should pause while still drawing, avoid drawing near-field graphics so they
+  /// don't visually fight with the system overlay, and consume fewer CPU and GPU resources.
+  /// \deprecated Do not use.
+  ovrBool OverlayPresent;
+
+  /// True if runtime is requesting that the application provide depth buffers with projection
+  /// layers.
+  ovrBool DepthRequested;
+
 } ovrSessionStatus;
 
 #if !defined(OVR_EXPORTING_CAPI)
@@ -1512,6 +1713,38 @@ typedef struct ovrSessionStatus_ {
 ///
 OVR_PUBLIC_FUNCTION(ovrResult)
 ovr_GetSessionStatus(ovrSession session, ovrSessionStatus* sessionStatus);
+
+
+/// Query extension support status.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+/// \param[in] extension Extension to query.
+/// \param[out] outExtensionSupported Set to extension support status. ovrTrue if supported.
+///
+/// \return Returns an ovrResult indicating success or failure. In the case of
+///         failure use ovr_GetLastErrorInfo to get more information.
+///
+/// \see ovrExtensions
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_IsExtensionSupported(
+    ovrSession session,
+    ovrExtensions extension,
+    ovrBool* outExtensionSupported);
+
+/// Enable extension. Extensions must be enabled after ovr_Create is called.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+/// \param[in] extension Extension to enable.
+///
+/// \return Returns an ovrResult indicating success or failure. Extension is only
+///         enabled if successful. In the case of failure use ovr_GetLastErrorInfo
+///         to get more information.
+///
+/// \see ovrExtensions
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_EnableExtension(ovrSession session, ovrExtensions extension);
 
 //@}
 
@@ -1658,7 +1891,8 @@ OVR_PUBLIC_FUNCTION(ovrTrackingState)
 ovr_GetTrackingState(ovrSession session, double absTime, ovrBool latencyMarker);
 
 /// Returns an array of poses, where each pose matches a device type provided by the deviceTypes
-/// array parameter.
+/// array parameter.  If any pose cannot be retrieved, it will return a reason for the missing
+/// pose and the device pose will be zeroed out with a pose quaternion [x=0, y=0, z=0, w=1].
 ///
 /// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
 /// \param[in] deviceTypes Array of device types to query for their poses.
@@ -1696,7 +1930,7 @@ ovr_GetTrackerPose(ovrSession session, unsigned int trackerPoseIndex);
 /// Returns the most recent input state for controllers, without positional tracking info.
 ///
 /// \param[out] inputState Input state that will be filled in.
-/// \param[in] ovrControllerType Specifies which controller the input will be returned for.
+/// \param[in] controllerType Specifies which controller the input will be returned for.
 /// \return Returns ovrSuccess if the new state was successfully obtained.
 ///
 /// \see ovrControllerType
@@ -1916,6 +2150,44 @@ OVR_PUBLIC_FUNCTION(ovrResult) ovr_GetBoundaryVisible(ovrSession session, ovrBoo
 ///
 OVR_PUBLIC_FUNCTION(ovrResult) ovr_RequestBoundaryVisible(ovrSession session, ovrBool visible);
 
+// -----------------------------------------------------------------------------------
+/// @name Mixed reality capture support
+///
+/// Defines functions used for mixed reality capture / third person cameras.
+///
+
+/// Returns the number of camera properties of all cameras
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+/// \param[in, out] cameras Pointer to the array. If null and the provided array capacity is
+/// sufficient, will return ovrError_NullArrayPointer.
+/// \param[in, out] inoutCameraCount Supply the
+/// array capacity, will return the actual # of cameras defined. If *inoutCameraCount is too small,
+/// will return ovrError_InsufficientArraySize.
+/// \return Returns the list of external cameras the system knows about.
+/// Returns ovrError_NoExternalCameraInfo if there is not any eternal camera information.
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_GetExternalCameras(
+    ovrSession session,
+    ovrExternalCamera* cameras,
+    unsigned int* inoutCameraCount);
+
+/// Sets the camera intrinsics and/or extrinsics stored for the cameraName camera
+/// Names must be < 32 characters and null-terminated.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+/// \param[in] name Specifies which camera to set the intrinsics or extrinsics for.
+/// The name must be at most OVR_EXTERNAL_CAMERA_NAME_SIZE - 1
+/// characters. Otherwise, ovrError_ExternalCameraNameWrongSize is returned.
+/// \param[in] intrinsics Contains the intrinsic parameters to set, can be null
+/// \param[in] extrinsics Contains the extrinsic parameters to set, can be null
+/// \return Returns ovrSuccess or an ovrError code
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_SetExternalCameraProperties(
+    ovrSession session,
+    const char* name,
+    const ovrCameraIntrinsics* const intrinsics,
+    const ovrCameraExtrinsics* const extrinsics);
+
 ///@}
 
 #endif // !defined(OVR_EXPORTING_CAPI)
@@ -1943,6 +2215,8 @@ typedef enum ovrLayerType_ {
   /// Described by ovrLayerEyeFov.
   ovrLayerType_EyeFov = 1,
 
+  /// Described by ovrLayerEyeFovDepth.
+  ovrLayerType_EyeFovDepth = 2,
 
   /// Described by ovrLayerQuad. Previously called ovrLayerType_QuadInWorld.
   ovrLayerType_Quad = 3,
@@ -1952,6 +2226,16 @@ typedef enum ovrLayerType_ {
 
   /// Described by ovrLayerEyeMatrix.
   ovrLayerType_EyeMatrix = 5,
+
+
+  /// Described by ovrLayerEyeFovMultires.
+  ovrLayerType_EyeFovMultires = 7,
+
+  /// Described by ovrLayerCylinder.
+  ovrLayerType_Cylinder = 8,
+
+  /// Described by ovrLayerCube
+  ovrLayerType_Cube = 10,
 
 
   ovrLayerType_EnumSize = 0x7fffffff ///< Force type int32_t.
@@ -1979,8 +2263,10 @@ typedef enum ovrLayerFlags_ {
   /// relative to sensor/torso space and remaining still while the head moves.
   /// What used to be ovrLayerType_QuadHeadLocked is now ovrLayerType_Quad plus this flag.
   /// However the flag can be applied to any layer type to achieve a similar effect.
-  ovrLayerFlag_HeadLocked = 0x04
+  ovrLayerFlag_HeadLocked = 0x04,
 
+
+  ovrLayerFlags_EnumSize = 0x7fffffff ///< \internal Force type int32_t.
 } ovrLayerFlags;
 
 /// Defines properties shared by all ovrLayer structs, such as ovrLayerEyeFov.
@@ -1993,6 +2279,8 @@ typedef enum ovrLayerFlags_ {
 typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerHeader_ {
   ovrLayerType Type; ///< Described by ovrLayerType.
   unsigned Flags; ///< Described by ovrLayerFlags.
+
+  char Reserved[128];
 } ovrLayerHeader;
 
 /// Describes a layer that specifies a monoscopic or stereoscopic view.
@@ -2035,9 +2323,185 @@ typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerEyeFov_ {
   /// around the instant the application calls ovr_GetTrackingState
   /// The main purpose for this is to accurately track app tracking latency.
   double SensorSampleTime;
-
 } ovrLayerEyeFov;
 
+/// Describes a layer that specifies a monoscopic or stereoscopic view,
+/// with depth textures in addition to color textures. This is typically used to support
+/// positional time warp. This struct is the same as ovrLayerEyeFov, but with the addition
+/// of DepthTexture and ProjectionDesc.
+///
+/// ProjectionDesc can be created using ovrTimewarpProjectionDesc_FromProjection.
+///
+/// Three options exist with respect to mono/stereo texture usage:
+///    - ColorTexture[0] and ColorTexture[1] contain the left and right stereo renderings,
+///      respectively.
+///      Viewport[0] and Viewport[1] refer to ColorTexture[0] and ColorTexture[1], respectively.
+///    - ColorTexture[0] contains both the left and right renderings, ColorTexture[1] is NULL,
+///      and Viewport[0] and Viewport[1] refer to sub-rects with ColorTexture[0].
+///    - ColorTexture[0] contains a single monoscopic rendering, and Viewport[0] and
+///      Viewport[1] both refer to that rendering.
+///
+/// \see ovrTextureSwapChain, ovr_SubmitFrame
+///
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerEyeFovDepth_ {
+  /// Header.Type must be ovrLayerType_EyeFovDepth.
+  ovrLayerHeader Header;
+
+  /// ovrTextureSwapChains for the left and right eye respectively.
+  /// The second one of which can be NULL for cases described above.
+  ovrTextureSwapChain ColorTexture[ovrEye_Count];
+
+  /// Specifies the ColorTexture sub-rect UV coordinates.
+  /// Both Viewport[0] and Viewport[1] must be valid.
+  ovrRecti Viewport[ovrEye_Count];
+
+  /// The viewport field of view.
+  ovrFovPort Fov[ovrEye_Count];
+
+  /// Specifies the position and orientation of each eye view, with position specified in meters.
+  /// RenderPose will typically be the value returned from ovr_CalcEyePoses,
+  /// but can be different in special cases if a different head pose is used for rendering.
+  ovrPosef RenderPose[ovrEye_Count];
+
+  /// Specifies the timestamp when the source ovrPosef (used in calculating RenderPose)
+  /// was sampled from the SDK. Typically retrieved by calling ovr_GetTimeInSeconds
+  /// around the instant the application calls ovr_GetTrackingState
+  /// The main purpose for this is to accurately track app tracking latency.
+  double SensorSampleTime;
+
+  /// Depth texture for depth composition with overlays
+  /// Must map 1:1 to the ColorTexture.
+  ovrTextureSwapChain DepthTexture[ovrEye_Count];
+
+  /// Specifies how to convert DepthTexture information into meters.
+  /// \see ovrTimewarpProjectionDesc_FromProjection
+  ovrTimewarpProjectionDesc ProjectionDesc;
+} ovrLayerEyeFovDepth;
+
+/// Describes eye texture layouts. Used with ovrLayerEyeFovMultires.
+///
+typedef enum ovrTextureLayout_ {
+  ovrTextureLayout_Rectilinear = 0, ///< Regular eyeFov layer.
+  ovrTextureLayout_Octilinear = 1, ///< Octilinear extension must be enabled.
+  ovrTextureLayout_EnumSize = 0x7fffffff ///< Force type int32_t.
+} ovrTextureLayout;
+
+/// Multiresolution descriptor for Octilinear.
+///
+/// Usage of this layer must be successfully enabled via ovr_EnableExtension
+/// before it can be used.
+///
+/// \see ovrLayerEyeFovMultres
+///
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrTextureLayoutOctilinear_ {
+  // W warping
+  float WarpLeft;
+  float WarpRight;
+  float WarpUp;
+  float WarpDown;
+
+  // Size of W quadrants.
+  //
+  // SizeLeft + SizeRight <= Viewport.Size.w
+  // SizeUp   + sizeDown  <= Viewport.Size.h
+  //
+  // Clip space (0,0) is located at Viewport.Pos + (SizeLeft,SizeUp) where
+  // Viewport is given in the layer description.
+  //
+  // Viewport Top left
+  // +-----------------------------------------------------+
+  // |                        ^                       |    |
+  // |                        |                       |    |
+  // |           0          SizeUp         1          |    |
+  // |                        |                       |<--Portion of viewport
+  // |                        |                       |   determined by sizes
+  // |                        |                       |    |
+  // |<--------SizeLeft-------+-------SizeRight------>|    |
+  // |                        |                       |    |
+  // |                        |                       |    |
+  // |           2         SizeDown        3          |    |
+  // |                        |                       |    |
+  // |                        |                       |    |
+  // |                        v                       |    |
+  // +------------------------------------------------+    |
+  // |                                                     |
+  // +-----------------------------------------------------+
+  //                                                       Viewport bottom right
+  //
+  // For example, when rendering quadrant 0 its scissor rectangle will be
+  //
+  //  Top    = 0
+  //  Left   = 0
+  //  Right  = SizeLeft
+  //  Bottom = SizeUp
+  //
+  // and the scissor rectangle for quadrant 1 will be:
+  //
+  //  Top    = 0
+  //  Left   = SizeLeft
+  //  Right  = SizeLeft + SizeRight
+  //  Bottom = SizeUp
+  //
+  float SizeLeft;
+  float SizeRight;
+  float SizeUp;
+  float SizeDown;
+
+} ovrTextureLayoutOctilinear;
+
+/// Combines texture layout descriptors.
+///
+typedef union OVR_ALIGNAS(OVR_PTR_SIZE) ovrTextureLayoutDesc_Union_ {
+  ovrTextureLayoutOctilinear Octilinear[ovrEye_Count];
+} ovrTextureLayoutDesc_Union;
+
+/// Describes a layer that specifies a monoscopic or stereoscopic view with
+/// support for optional multiresolution textures. This struct is the same as
+/// ovrLayerEyeFov plus texture layout parameters.
+///
+/// Three options exist with respect to mono/stereo texture usage:
+///    - ColorTexture[0] and ColorTexture[1] contain the left and right stereo renderings,
+///      respectively.
+///      Viewport[0] and Viewport[1] refer to ColorTexture[0] and ColorTexture[1], respectively.
+///    - ColorTexture[0] contains both the left and right renderings, ColorTexture[1] is NULL,
+///      and Viewport[0] and Viewport[1] refer to sub-rects with ColorTexture[0].
+///    - ColorTexture[0] contains a single monoscopic rendering, and Viewport[0] and
+///      Viewport[1] both refer to that rendering.
+///
+/// \see ovrTextureSwapChain, ovr_SubmitFrame
+///
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerEyeFovMultires_ {
+  /// Header.Type must be ovrLayerType_EyeFovMultires.
+  ovrLayerHeader Header;
+
+  /// ovrTextureSwapChains for the left and right eye respectively.
+  /// The second one of which can be NULL for cases described above.
+  ovrTextureSwapChain ColorTexture[ovrEye_Count];
+
+  /// Specifies the ColorTexture sub-rect UV coordinates.
+  /// Both Viewport[0] and Viewport[1] must be valid.
+  ovrRecti Viewport[ovrEye_Count];
+
+  /// The viewport field of view.
+  ovrFovPort Fov[ovrEye_Count];
+
+  /// Specifies the position and orientation of each eye view, with position specified in meters.
+  /// RenderPose will typically be the value returned from ovr_CalcEyePoses,
+  /// but can be different in special cases if a different head pose is used for rendering.
+  ovrPosef RenderPose[ovrEye_Count];
+
+  /// Specifies the timestamp when the source ovrPosef (used in calculating RenderPose)
+  /// was sampled from the SDK. Typically retrieved by calling ovr_GetTimeInSeconds
+  /// around the instant the application calls ovr_GetTrackingState
+  /// The main purpose for this is to accurately track app tracking latency.
+  double SensorSampleTime;
+
+  /// Specifies layout type of textures.
+  ovrTextureLayout TextureLayout;
+
+  /// Specifies texture layout parameters.
+  ovrTextureLayoutDesc_Union TextureLayoutDesc;
+} ovrLayerEyeFovMultires;
 
 /// Describes a layer that specifies a monoscopic or stereoscopic view.
 /// This uses a direct 3x4 matrix to map from view space to the UV coordinates.
@@ -2086,7 +2550,6 @@ typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerEyeMatrix_ {
   /// around the instant the application calls ovr_GetTrackingState
   /// The main purpose for this is to accurately track app tracking latency.
   double SensorSampleTime;
-
 } ovrLayerEyeMatrix;
 
 /// Describes a layer of Quad type, which is a single quad in world or viewer space.
@@ -2121,8 +2584,94 @@ typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerQuad_ {
 
   /// Width and height (respectively) of the quad in meters.
   ovrVector2f QuadSize;
-
 } ovrLayerQuad;
+
+/// Describes a layer of type ovrLayerType_Cylinder which is a single cylinder
+/// relative to the recentered origin. This type of layer represents a single
+/// object placed in the world and not a stereo view of the world itself.
+///
+///                -Z                                       +Y
+///         U=0  +--+--+  U=1
+///          +---+  |  +---+            +-----------------+  - V=0
+///       +--+ \    |    / +--+         |                 |  |
+///     +-+     \       /     +-+       |                 |  |
+///    ++        \  A  /        ++      |                 |  |
+///   ++          \---/          ++     |                 |  |
+///   |            \ /            |     |              +X |  |
+///   +-------------C------R------+ +X  +--------C--------+  | <--- Height
+///       (+Y is out of screen)         |                 |  |
+///                                     |                 |  |
+///   R = Radius                        |                 |  |
+///   A = Angle (0,2*Pi)                |                 |  |
+///   C = CylinderPoseCenter            |                 |  |
+///   U/V = UV Coordinates              +-----------------+  - V=1
+///
+/// An identity CylinderPoseCenter places the center of the cylinder
+/// at the recentered origin unless the headlocked flag is set.
+///
+/// Does not utilize HmdSpaceToWorldScaleInMeters. If necessary, adjust
+/// translation and radius.
+///
+/// \note Only the interior surface of the cylinder is visible. Use cylinder
+/// layers when the user cannot leave the extents of the cylinder. Artifacts may
+/// appear when viewing the cylinder's exterior surface. Additionally, while the
+/// interface supports an Angle that ranges from [0,2*Pi] the angle should
+/// remain less than 1.9*PI to avoid artifacts where the cylinder edges
+/// converge.
+///
+/// \see ovrTextureSwapChain, ovr_SubmitFrame
+///
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerCylinder_ {
+  /// Header.Type must be ovrLayerType_Cylinder.
+  ovrLayerHeader Header;
+
+  /// Contains a single image, never with any stereo view.
+  ovrTextureSwapChain ColorTexture;
+
+  /// Specifies the ColorTexture sub-rect UV coordinates.
+  ovrRecti Viewport;
+
+  /// Specifies the orientation and position of the center point of a cylinder layer type.
+  /// The position is in real-world meters not the application's virtual world,
+  /// but the physical world the user is in. It is relative to the "zero" position
+  /// set by ovr_RecenterTrackingOrigin unless the ovrLayerFlag_HeadLocked flag is used.
+  ovrPosef CylinderPoseCenter;
+
+  /// Radius of the cylinder in meters.
+  float CylinderRadius;
+
+  /// Angle in radians. Range is from 0 to 2*Pi exclusive covering the entire
+  /// cylinder (see diagram and note above).
+  float CylinderAngle;
+
+  /// Custom aspect ratio presumably set based on 'Viewport'. Used to
+  /// calculate the height of the cylinder based on the arc-length (CylinderAngle)
+  /// and radius (CylinderRadius) given above. The height of the cylinder is
+  /// given by: height = (CylinderRadius * CylinderAngle) / CylinderAspectRatio.
+  /// Aspect ratio is width / height.
+  float CylinderAspectRatio;
+} ovrLayerCylinder;
+
+/// Describes a layer of type ovrLayerType_Cube which is a single timewarped
+/// cubemap at infinity. When looking down the recentered origin's -Z axis, +X
+/// face is left and +Y face is up. Similarly, if headlocked the +X face is
+/// left, +Y face is up and -Z face is forward. Note that the coordinate system
+/// is left-handed.
+///
+/// ovrLayerFlag_TextureOriginAtBottomLeft flag is not supported by ovrLayerCube.
+///
+/// \see ovrTextureSwapChain, ovr_SubmitFrame
+///
+typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerCube_ {
+  /// Header.Type must be ovrLayerType_Cube.
+  ovrLayerHeader Header;
+
+  /// Orientation of the cube.
+  ovrQuatf Orientation;
+
+  /// Contains a single cubemap swapchain (not a stereo pair of swapchains).
+  ovrTextureSwapChain CubeMapTexture;
+} ovrLayerCube;
 
 
 
@@ -2131,7 +2680,12 @@ typedef struct OVR_ALIGNAS(OVR_PTR_SIZE) ovrLayerQuad_ {
 typedef union ovrLayer_Union_ {
   ovrLayerHeader Header;
   ovrLayerEyeFov EyeFov;
+  ovrLayerEyeFovDepth EyeFovDepth;
   ovrLayerQuad Quad;
+  ovrLayerEyeMatrix EyeMatrix;
+  ovrLayerEyeFovMultires Multires;
+  ovrLayerCylinder Cylinder;
+  ovrLayerCube Cube;
 } ovrLayer_Union;
 
 //@}
@@ -2229,7 +2783,7 @@ OVR_PUBLIC_FUNCTION(void)
 ovr_DestroyTextureSwapChain(ovrSession session, ovrTextureSwapChain chain);
 
 /// MirrorTexture creation is rendering API-specific.
-/// ovr_CreateMirrorTextureDX and ovr_CreateMirrorTextureGL can be found in the
+/// ovr_CreateMirrorTextureWithOptionsDX and ovr_CreateMirrorTextureWithOptionsGL can be found in
 /// rendering API-specific headers, such as OVR_CAPI_D3D.h and OVR_CAPI_GL.h
 
 /// Destroys a mirror texture previously created by one of the mirror texture creation functions.
@@ -2238,7 +2792,7 @@ ovr_DestroyTextureSwapChain(ovrSession session, ovrTextureSwapChain chain);
 /// \param[in] mirrorTexture Specifies the ovrTexture to destroy. If it is NULL then
 ///            this function has no effect.
 ///
-/// \see ovr_CreateMirrorTextureDX, ovr_CreateMirrorTextureGL
+/// \see ovr_CreateMirrorTextureWithOptionsDX, ovr_CreateMirrorTextureWithOptionsGL
 ///
 OVR_PUBLIC_FUNCTION(void)
 ovr_DestroyMirrorTexture(ovrSession session, ovrMirrorTexture mirrorTexture);
@@ -2290,8 +2844,124 @@ ovr_GetFovTextureSize(
 OVR_PUBLIC_FUNCTION(ovrEyeRenderDesc)
 ovr_GetRenderDesc(ovrSession session, ovrEyeType eyeType, ovrFovPort fov);
 
+/// Waits until surfaces are available and it is time to begin rendering the frame.  Must be
+/// called before ovr_BeginFrame, but not necessarily from the same thread.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+///
+/// \param[in] frameIndex Specifies the targeted application frame index.
+///
+/// \return Returns an ovrResult for which OVR_SUCCESS(result) is false upon error and true
+///         upon success. Return values include but aren't limited to:
+///     - ovrSuccess: command completed successfully.
+///     - ovrSuccess_NotVisible: rendering of a previous frame completed successfully but was not
+///       displayed on the HMD, usually because another application currently has ownership of the
+///       HMD. Applications receiving this result should stop rendering new content and call
+///       ovr_GetSessionStatus to detect visibility.
+///     - ovrError_DisplayLost: The session has become invalid (such as due to a device removal)
+///       and the shared resources need to be released (ovr_DestroyTextureSwapChain), the session
+///       needs to destroyed (ovr_Destroy) and recreated (ovr_Create), and new resources need to be
+///       created (ovr_CreateTextureSwapChainXXX). The application's existing private graphics
+///       resources do not need to be recreated unless the new ovr_Create call returns a different
+///       GraphicsLuid.
+///
+/// \see ovr_BeginFrame, ovr_EndFrame, ovr_GetSessionStatus
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_WaitToBeginFrame(ovrSession session, long long frameIndex);
+
+/// Called from render thread before application begins rendering.  Must be called after
+/// ovr_WaitToBeginFrame and before ovr_EndFrame, but not necessarily from the same threads.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+///
+/// \param[in] frameIndex Specifies the targeted application frame index.  It must match what was
+///        passed to ovr_WaitToBeginFrame.
+///
+/// \return Returns an ovrResult for which OVR_SUCCESS(result) is false upon error and true
+///         upon success. Return values include but aren't limited to:
+///     - ovrSuccess: command completed successfully.
+///     - ovrError_DisplayLost: The session has become invalid (such as due to a device removal)
+///       and the shared resources need to be released (ovr_DestroyTextureSwapChain), the session
+///       needs to destroyed (ovr_Destroy) and recreated (ovr_Create), and new resources need to be
+///       created (ovr_CreateTextureSwapChainXXX). The application's existing private graphics
+///       resources do not need to be recreated unless the new ovr_Create call returns a different
+///       GraphicsLuid.
+///
+/// \see ovr_WaitToBeginFrame, ovr_EndFrame
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_BeginFrame(ovrSession session, long long frameIndex);
+
+/// Called from render thread after application has finished rendering.  Must be called after
+/// ovr_BeginFrame, but not necessarily from the same thread.  Submits layers for distortion and
+/// display, which will happen asynchronously.
+///
+/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
+///
+/// \param[in] frameIndex Specifies the targeted application frame index.  It must match what was
+///        passed to ovr_BeginFrame.
+///
+/// \param[in] viewScaleDesc Provides additional information needed only if layerPtrList contains
+///        an ovrLayerType_Quad. If NULL, a default version is used based on the current
+///        configuration and a 1.0 world scale.
+///
+/// \param[in] layerPtrList Specifies a list of ovrLayer pointers, which can include NULL entries to
+///        indicate that any previously shown layer at that index is to not be displayed.
+///        Each layer header must be a part of a layer structure such as ovrLayerEyeFov or
+///        ovrLayerQuad, with Header.Type identifying its type. A NULL layerPtrList entry in the
+///        array indicates the absence of the given layer.
+///
+/// \param[in] layerCount Indicates the number of valid elements in layerPtrList. The maximum
+///        supported layerCount is not currently specified, but may be specified in a future
+///        version.
+///
+/// - Layers are drawn in the order they are specified in the array, regardless of the layer type.
+///
+/// - Layers are not remembered between successive calls to ovr_SubmitFrame. A layer must be
+///   specified in every call to ovr_SubmitFrame or it won't be displayed.
+///
+/// - If a layerPtrList entry that was specified in a previous call to ovr_SubmitFrame is
+///   passed as NULL or is of type ovrLayerType_Disabled, that layer is no longer displayed.
+///
+/// - A layerPtrList entry can be of any layer type and multiple entries of the same layer type
+///   are allowed. No layerPtrList entry may be duplicated (i.e. the same pointer as an earlier
+///   entry).
+///
+/// <b>Example code</b>
+///     \code{.cpp}
+///         ovrLayerEyeFov  layer0;
+///         ovrLayerQuad    layer1;
+///           ...
+///         ovrLayerHeader* layers[2] = { &layer0.Header, &layer1.Header };
+///         ovrResult result = ovr_EndFrame(session, frameIndex, nullptr, layers, 2);
+///     \endcode
+///
+/// \return Returns an ovrResult for which OVR_SUCCESS(result) is false upon error and true
+///         upon success. Return values include but aren't limited to:
+///     - ovrSuccess: rendering completed successfully.
+///     - ovrError_DisplayLost: The session has become invalid (such as due to a device removal)
+///       and the shared resources need to be released (ovr_DestroyTextureSwapChain), the session
+///       needs to destroyed (ovr_Destroy) and recreated (ovr_Create), and new resources need to be
+///       created (ovr_CreateTextureSwapChainXXX). The application's existing private graphics
+///       resources do not need to be recreated unless the new ovr_Create call returns a different
+///       GraphicsLuid.
+///     - ovrError_TextureSwapChainInvalid: The ovrTextureSwapChain is in an incomplete or
+///       inconsistent state. Ensure ovr_CommitTextureSwapChain was called at least once first.
+///
+/// \see ovr_WaitToBeginFrame, ovr_BeginFrame, ovrViewScaleDesc, ovrLayerHeader
+///
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_EndFrame(
+    ovrSession session,
+    long long frameIndex,
+    const ovrViewScaleDesc* viewScaleDesc,
+    ovrLayerHeader const* const* layerPtrList,
+    unsigned int layerCount);
 
 /// Submits layers for distortion and display.
+///
+/// \deprecated  Use ovr_WaitToBeginFrame, ovr_BeginFrame, and ovr_EndFrame instead.
 ///
 /// ovr_SubmitFrame triggers distortion and processing which might happen asynchronously.
 /// The function will return when there is room in the submission queue and surfaces
@@ -2682,49 +3352,6 @@ typedef enum ovrDebugHudStereoMode_ {
   ovrDebugHudStereo_EnumSize = 0x7fffffff ///< \internal Force type int32_t
 } ovrDebugHudStereoMode;
 
-
-#if !defined(OVR_EXPORTING_CAPI)
-
-// -----------------------------------------------------------------------------------
-/// @name Mixed reality capture support
-///
-/// Defines functions used for mixed reality capture / third person cameras.
-///
-//@{
-
-/// Returns the number of camera properties of all cameras
-/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
-/// \param[in out] cameras Pointer to the array. If null and the provided array capacity is
-/// sufficient, will return ovrError_NullArrayPointer. \param[in out] inoutCameraCount Supply the
-/// array capacity, will return the actual # of cameras defined. If *inoutCameraCount is too small,
-/// will return ovrError_InsufficientArraySize. \return Returns the ids of external cameras the
-/// system knows about. Returns
-///            ovrError_NoExternalCameraInfo if there is not any eternal camera information.
-OVR_PUBLIC_FUNCTION(ovrResult)
-ovr_GetExternalCameras(
-    ovrSession session,
-    ovrExternalCamera* cameras,
-    unsigned int* inoutCameraCount);
-
-/// Sets the camera intrinsics and/or extrinsics stored for the cameraName camera
-/// Names must be < 32 characters and null-terminated.
-///
-/// \param[in] session Specifies an ovrSession previously returned by ovr_Create.
-/// \param[in] name Specifies which camera to set the intrinsics or extrinsics for
-/// \param[in] intrinsics Contains the intrinsic parameters to set, can be null
-/// \param[in] extrinsics Contains the extrinsic parameters to set, can be null
-/// \return Returns ovrSuccess or an ovrError code
-OVR_PUBLIC_FUNCTION(ovrResult)
-ovr_SetExternalCameraProperties(
-    ovrSession session,
-    const char* name,
-    const ovrCameraIntrinsics* const intrinsics,
-    const ovrCameraExtrinsics* const extrinsics);
-
-///@}
-
-#endif // OVR_EXPORTING_CAPI
-
 #if !defined(OVR_EXPORTING_CAPI)
 
 // -----------------------------------------------------------------------------------
@@ -2864,6 +3491,10 @@ ovr_SetString(ovrSession session, const char* propertyName, const char* value);
 
 /// @cond DoxygenIgnore
 
+
+OVR_STATIC_ASSERT(
+    sizeof(ovrTextureSwapChainDesc) == 10 * 4,
+    "ovrTextureSwapChainDesc size mismatch");
 
 // -----------------------------------------------------------------------------------
 // ***** Backward compatibility #includes

@@ -5,7 +5,7 @@ Content     :   GL implementation for blitting, supporting scaling & rotation
 Created     :   February 24, 2015
 Authors     :   Reza Nourai
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -175,5 +175,95 @@ bool Blitter::Blt(
 
   return true;
 }
+
+bool Blitter::BltCubemap(GLuint sourceTexId, GLuint tempTexId, uint32_t cubeMapSize) {
+  GLenum status = 0;
+  GLint currentTex2D = 0;
+  GLint size = (GLint)cubeMapSize;
+  const int numFaces = 6;
+
+  // Store off currently selected tex2d
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTex2D);
+
+  // Save off the current FBOs
+  GLint currentReadFB;
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &currentReadFB);
+  AssertOnGLError();
+
+  for (int faceIndex = 0; faceIndex < numFaces; ++faceIndex) {
+    // Create framebuffers
+    GLuint drawCubeFBO;
+    glGenFramebuffers(1, &drawCubeFBO);
+    AssertOnGLError();
+
+    GLuint readCubeFBO;
+    glGenFramebuffers(1, &readCubeFBO);
+    AssertOnGLError();
+
+    GLuint drawFinalCubeFBO;
+    glGenFramebuffers(1, &drawFinalCubeFBO);
+    AssertOnGLError();
+
+    // Setup draw buffer with temp texture to hold flipped face
+    // tempTexId holds a Texture2D the size of one cubemap face (cubeMapSize)
+    // It is used to temporarily hold a flipped face before blitting it to the original cubemap
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawCubeFBO);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexId, 0);
+
+    // Setup read buffer with original cubemap texture
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, readCubeFBO);
+    AssertOnGLError();
+
+    glFramebufferTexture2D(
+        GL_READ_FRAMEBUFFER,
+        GL_COLOR_ATTACHMENT0,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex,
+        sourceTexId,
+        0);
+    AssertOnGLError();
+    status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+    OVR_ASSERT_AND_UNUSED(status == GL_FRAMEBUFFER_COMPLETE, status);
+
+    // Do the blt
+    glBlitFramebuffer(0, size, size, 0, 0, size, size, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    AssertOnGLError();
+
+    // Setup final draw buffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFinalCubeFBO);
+    glFramebufferTexture2D(
+        GL_DRAW_FRAMEBUFFER,
+        GL_COLOR_ATTACHMENT0,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex,
+        sourceTexId,
+        0);
+
+    // Setup read buffer to be the previous draw buffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, drawCubeFBO); // flipped FBO
+    AssertOnGLError();
+
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexId, 0);
+    AssertOnGLError();
+    status = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+    OVR_ASSERT_AND_UNUSED(status == GL_FRAMEBUFFER_COMPLETE, status);
+
+    // Do the blt again
+    glBlitFramebuffer(0, size, size, 0, 0, 0, size, size, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    AssertOnGLError();
+
+    // Delete framebuffers
+    glDeleteFramebuffers(1, &drawCubeFBO);
+    drawCubeFBO = 0;
+    glDeleteFramebuffers(1, &readCubeFBO);
+    readCubeFBO = 0;
+    glDeleteFramebuffers(1, &drawFinalCubeFBO);
+    drawFinalCubeFBO = 0;
+  }
+
+  // Restore the previous FBOs
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, currentReadFB);
+  AssertOnGLError();
+
+  return true;
 }
-} // namespace OVR::GLUtil
+} // namespace GLUtil
+} // namespace OVR

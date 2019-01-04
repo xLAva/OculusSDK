@@ -209,11 +209,11 @@ void* MachHandlerThreadFunctionStatic(void* pExceptionHandlerVoid) {
 
 namespace OVR {
 
-void GetInstructionPointer(void*& pInstruction) {
+void* GetInstructionAddress() {
 #if defined(OVR_CC_MSVC)
-  pInstruction = _ReturnAddress();
+  return _ReturnAddress();
 #else // GCC, clang
-  pInstruction = __builtin_return_address(0);
+  return __builtin_return_address(0);
 #endif
 }
 
@@ -583,18 +583,18 @@ bool RedirectCdeclFunction(
     const void* pDestFunction,
     OVR::SavedFunction* pSavedFunction) {
 #if defined(_WIN32)
-// The same implementation works for both 32 bit x86 and 64 bit x64.
-// We implement this as a 32 bit relative jump from pFunction to pDestFunction.
-// This takes five bytes and is of the form:
-//    E9 <32bit offset>
-// This can work only when the pDestFunction is within 32 bits of pFunction. That will always be
-// the case when redirecting to a new location within the same module. But on 64 bit Windows, it
-// may be that pFunction is in one module and pDestFunction is in another module (e.g. DLL) with an
-// address that is farther than 32 bits away. In that case we need to instead do a 64 bit absolute
-// jump or if there isn't enough space for those instruction bytes then we need to do a near jump to
-// some nearby location where we can have a full 64 bit absolute jump. It turns out that in the case
-// of calling DLL functions the absolute-jump-through-64bit-data 0xff instruction is used. We could
-// change that 64 bit data.
+  // The same implementation works for both 32 bit x86 and 64 bit x64.
+  // We implement this as a 32 bit relative jump from pFunction to pDestFunction.
+  // This takes five bytes and is of the form:
+  //    E9 <32bit offset>
+  // This can work only when the pDestFunction is within 32 bits of pFunction. That will always be
+  // the case when redirecting to a new location within the same module. But on 64 bit Windows, it
+  // may be that pFunction is in one module and pDestFunction is in another module (e.g. DLL) with
+  // an address that is farther than 32 bits away. In that case we need to instead do a 64 bit
+  // absolute jump or if there isn't enough space for those instruction bytes then we need to do a
+  // near jump to some nearby location where we can have a full 64 bit absolute jump. It turns out
+  // that in the case of calling DLL functions the absolute-jump-through-64bit-data 0xff instruction
+  // is used. We could change that 64 bit data.
 
 #if defined(_WIN64)
   if (abs((intptr_t)pDestFunction - (intptr_t)pFunction) >= ((intptr_t)1 << 31)) {
@@ -758,7 +758,22 @@ void CopiedFunction::Free() {
   }
 }
 
+static bool DebuggerForcedNotPresent = false;
+
+// Force OVRIsDebuggerPresent to return false
+void ForceDebuggerNotPresent() {
+  DebuggerForcedNotPresent = true;
+}
+
+// Allow debugger check to proceded as normal
+void ClearDebuggerNotPresent() {
+  DebuggerForcedNotPresent = false;
+}
+
 bool OVRIsDebuggerPresent() {
+  if (DebuggerForcedNotPresent) {
+    return false;
+  }
 #if defined(OVR_OS_MS)
   return ::IsDebuggerPresent() != 0;
 
@@ -1542,9 +1557,8 @@ SymbolLookup::SymbolLookup()
     : AllowMemoryAllocation(true),
       ModuleListUpdated(false),
       ModuleInfoArray(),
-      ModuleInfoArraySize(0) {}
-
-SymbolLookup::~SymbolLookup() {}
+      ModuleInfoArraySize(0),
+      currentModuleInfo{} {}
 
 void SymbolLookup::AddSourceCodeDirectory(const char* pDirectory) {
   OVR_UNUSED(pDirectory);
@@ -1753,7 +1767,7 @@ size_t SymbolLookup::GetBacktrace(
   } else // Else get the current values...
   {
     pStackFrame = (StackFrame*)__builtin_frame_address(0);
-    GetInstructionPointer(pInstruction);
+    pInstruction = GetInstructionAddress();
   }
 
   pthread_t threadSelf = pthread_self();
@@ -1955,12 +1969,15 @@ size_t SymbolLookup::GetBacktraceFromThreadSysId(
 // We need to return the required moduleInfoArrayCapacity.
 size_t SymbolLookup::GetModuleInfoArray(
     ModuleInfo* pModuleInfoArray,
-    size_t moduleInfoArrayCapacity) {
+    size_t moduleInfoArrayCapacity,
+    ModuleSort moduleSort) {
+  // The count we would copy to pModuleInfoArray if moduleInfoArrayCapacity was enough.
+  size_t moduleCountRequired = 0;
+
+  // The count we actually copy to pModuleInfoArray. Will be <= moduleInfoArrayCapacity.
+  size_t moduleCount = 0;
+
 #if defined(OVR_OS_MS)
-  size_t moduleCountRequired =
-      0; // The count we would copy to pModuleInfoArray if moduleInfoArrayCapacity was enough.
-  size_t moduleCount =
-      0; // The count we actually copy to pModuleInfoArray. Will be <= moduleInfoArrayCapacity.
   HANDLE hProcess = GetCurrentProcess();
   HMODULE hModuleArray[200];
   DWORD cbNeeded = 0;
@@ -2008,12 +2025,7 @@ size_t SymbolLookup::GetModuleInfoArray(
     }
   }
 
-  return moduleCountRequired;
-
 #elif defined(OVR_OS_MAC)
-  size_t moduleCountRequired = 0;
-  size_t moduleCount = 0;
-
   struct MacModuleInfo // This struct exists solely so we can have a local function within this
   // function..
   {
@@ -2125,13 +2137,33 @@ size_t SymbolLookup::GetModuleInfoArray(
   // can't tell us the list of modules.
   OVR_UNUSED(pModuleInfoArray);
   OVR_UNUSED(moduleInfoArrayCapacity);
-  return 0;
+  moduleCountRequired = 0;
+  moduleCount = 0;
 
 #else
   OVR_UNUSED(pModuleInfoArray);
   OVR_UNUSED(moduleInfoArrayCapacity);
-  return 0;
+  moduleCountRequired = 0;
+  moduleCount = 0;
 #endif
+
+  if (moduleSort == ModuleSortByAddress) {
+    std::sort(
+        pModuleInfoArray,
+        pModuleInfoArray + moduleCount,
+        [](const ModuleInfo& mi1, const ModuleInfo& mi2) -> bool {
+          return mi1.baseAddress < mi2.baseAddress;
+        });
+  } else if (moduleSort == ModuleSortByName) {
+    std::sort(
+        pModuleInfoArray,
+        pModuleInfoArray + moduleCount,
+        [](const ModuleInfo& mi1, const ModuleInfo& mi2) -> bool {
+          return (stricmp(mi1.name, mi2.name) < 0);
+        });
+  }
+
+  return moduleCountRequired;
 }
 
 size_t SymbolLookup::GetThreadList(
@@ -2378,11 +2410,9 @@ bool SymbolLookup::RefreshModuleList() {
     // We can't rely on SymRefreshModuleList because it's present in DbgHelp 6.5,
     // which doesn't distribute with Windows 7.
 
-    // Currently we support only refreshing the list once ever. With a little effort we could revise
-    // this code to
-    // support re-refreshing the list at runtime to account for the possibility that modules have
-    // recently been
-    // added or removed.
+    // Currently we support only refreshing the list once ever. With a little effort
+    // we could revise this code to support re-refreshing the list at runtime to account
+    // for the possibility that modules have recently been added or removed.
     if (pSymLoadModule64) {
       const size_t requiredCount =
           GetModuleInfoArray(ModuleInfoArray, OVR_ARRAY_COUNT(ModuleInfoArray));
@@ -2505,9 +2535,9 @@ bool SymbolLookup::LookupSymbols(
     pSymbolInfoArray[i].pModuleInfo = GetModuleInfoForAddress(addressArray[i]);
   }
 
-// Problem: backtrace_symbols allocates memory from malloc. If you got into a SIGSEGV due to
-// malloc arena corruption (quite common) you will likely fault in backtrace_symbols.
-// To do: Use allowMemoryAllocation here.
+  // Problem: backtrace_symbols allocates memory from malloc. If you got into a SIGSEGV due to
+  // malloc arena corruption (quite common) you will likely fault in backtrace_symbols.
+  // To do: Use allowMemoryAllocation here.
 
 #if (OVR_PTR_SIZE == 4)
   // backtrace_symbols takes a void* array, but we have a uint64_t array. So for 32 bit we
@@ -2619,6 +2649,17 @@ const ModuleInfo* SymbolLookup::GetModuleInfoForAddress(uint64_t address) {
   }
 
   return nullptr;
+}
+
+const ModuleInfo& SymbolLookup::GetModuleInfoForCurrentModule() {
+  OVR_ASSERT(ModuleInfoArraySize > 0); // We expect that the modules have been iterated previously.
+  if (currentModuleInfo.baseAddress == 0) { // If the current module hasn't been identified yet...
+    const ModuleInfo* mi = GetModuleInfoForAddress((uintptr_t)GetInstructionAddress);
+    if (mi)
+      currentModuleInfo = *mi; // This will set currentModuleInfo.baseAddress to a non-zero value.
+  }
+
+  return currentModuleInfo;
 }
 
 ExceptionInfo::ExceptionInfo()
@@ -2835,6 +2876,10 @@ LONG ExceptionHandler::ExceptionFilter(LPEXCEPTION_POINTERS pExceptionPointersAr
   // http://support.microsoft.com/kb/185294
   // http://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
   if (pExceptionPointersArg->ExceptionRecord->ExceptionCode == 0xe06d7363)
+    return EXCEPTION_CONTINUE_SEARCH;
+
+  // folly causes this when it closes some socket handles, not really a crash
+  if (pExceptionPointersArg->ExceptionRecord->ExceptionCode == STATUS_HANDLE_NOT_CLOSABLE)
     return EXCEPTION_CONTINUE_SEARCH;
 
   unsigned int tmp_zero = 0;

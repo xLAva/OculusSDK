@@ -7,7 +7,7 @@ Created     :   April 9, 2013
 Author      :   Brant Lewis
 Notes       :
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -223,6 +223,6 @@ class JSON : public RefCountBase<JSON>, public ListNode<JSON> {
   char* PrintObject(int depth, bool fmt);
   char* PrintArray(int depth, bool fmt);
 };
-}
+} // namespace OVR
 
 #endif // OVR_JSON_h

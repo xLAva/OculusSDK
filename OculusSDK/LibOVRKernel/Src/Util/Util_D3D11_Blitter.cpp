@@ -5,7 +5,7 @@ Content     :   D3D11 implementation for blitting, supporting scaling & rotation
 Created     :   February 24, 2015
 Authors     :   Reza Nourai
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -32,7 +32,14 @@ limitations under the License.
 #include "Shaders/Blt_vs.h"
 #include "Shaders/Blt_ps.h"
 #include "Shaders/Blt_ps_ms2.h"
-#include "Shaders/Blt_ps_ms4.h"
+#include <io.h>
+
+struct MSAAShader {
+  const BYTE* Data;
+  SIZE_T Size;
+};
+
+static MSAAShader PixelShaderList[] = {{Blt_ps, sizeof(Blt_ps)}, {Blt_ps_ms2, sizeof(Blt_ps_ms2)}};
 
 namespace OVR {
 namespace D3DUtil {
@@ -50,9 +57,8 @@ Blitter::Blitter(const Ptr<ID3D11Device>& device)
       VB(),
       VS(),
       PS(),
-      PS_MS2(),
-      PS_MS4(),
       Sampler(),
+      DepthState(),
       AlreadyInitialized(false) {
   device->QueryInterface(IID_PPV_ARGS(&Device.GetRawRef()));
   OVR_ASSERT(Device);
@@ -73,6 +79,8 @@ bool Blitter::Initialize() {
   if (AlreadyInitialized) {
     return false;
   }
+
+  OVR_ASSERT(_countof(PixelShaderList) == PixelShaders::ShaderCount);
 
   UINT deviceFlags = Device->GetCreationFlags();
   D3D_FEATURE_LEVEL featureLevel = Device->GetFeatureLevel();
@@ -104,23 +112,14 @@ bool Blitter::Initialize() {
   OVR_D3D_CHECK_RET_FALSE(hr);
   OVR_D3D_TAG_OBJECT(VS);
 
-  OVR_ASSERT(!PS); // Expected to be null on the way in.
-  PS = nullptr; // Prevents a potential leak on the next line.
-  hr = Device->CreatePixelShader(Blt_ps, sizeof(Blt_ps), nullptr, &PS.GetRawRef());
-  OVR_D3D_CHECK_RET_FALSE(hr);
-  OVR_D3D_TAG_OBJECT(PS);
-
-  OVR_ASSERT(!PS_MS2); // Expected to be null on the way in.
-  PS_MS2 = nullptr; // Prevents a potential leak on the next line.
-  hr = Device->CreatePixelShader(Blt_ps_ms2, sizeof(Blt_ps_ms2), nullptr, &PS_MS2.GetRawRef());
-  OVR_D3D_CHECK_RET_FALSE(hr);
-  OVR_D3D_TAG_OBJECT(PS_MS2);
-
-  OVR_ASSERT(!PS_MS4); // Expected to be null on the way in.
-  PS_MS4 = nullptr; // Prevents a potential leak on the next line.
-  hr = Device->CreatePixelShader(Blt_ps_ms4, sizeof(Blt_ps_ms4), nullptr, &PS_MS4.GetRawRef());
-  OVR_D3D_CHECK_RET_FALSE(hr);
-  OVR_D3D_TAG_OBJECT(PS_MS4);
+  for (int i = 0; i < ShaderCount; ++i) {
+    Ptr<ID3D11PixelShader> ps;
+    hr = Device->CreatePixelShader(
+        PixelShaderList[i].Data, PixelShaderList[i].Size, nullptr, &ps.GetRawRef());
+    OVR_D3D_CHECK_RET_FALSE(hr);
+    OVR_D3D_TAG_OBJECT(ps);
+    PS[i] = ps;
+  }
 
   D3D11_INPUT_ELEMENT_DESC elems[2] = {};
   elems[0].Format = DXGI_FORMAT_R32G32_FLOAT;
@@ -167,6 +166,13 @@ bool Blitter::Initialize() {
   OVR_D3D_CHECK_RET_FALSE(hr);
   // OVR_D3D_TAG_OBJECT();  Seems to already have a name.
 
+  D3D11_DEPTH_STENCIL_DESC depthDesc{};
+
+  OVR_ASSERT(!DepthState); // Expected to be null on the way in.
+  DepthState = nullptr; // Prevents a potential leak on the next line.
+  hr = Device->CreateDepthStencilState(&depthDesc, &DepthState.GetRawRef());
+  OVR_D3D_CHECK_RET_FALSE(hr);
+
   // Swap to our blt state to set it up
   Ptr<ID3DDeviceContextState> existingState;
   Context1->SwapDeviceContextState(BltState, &existingState.GetRawRef());
@@ -175,6 +181,7 @@ bool Blitter::Initialize() {
   Context1->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   Context1->VSSetShader(VS, nullptr, 0);
   Context1->PSSetSamplers(0, 1, &Sampler.GetRawRef());
+  Context1->OMSetDepthStencilState(DepthState, 0);
 
   // Swap back
   Context1->SwapDeviceContextState(existingState, nullptr);
@@ -244,19 +251,10 @@ bool Blitter::Blt(
   D3D11_TEXTURE2D_DESC texDesc;
   tmpTexture->GetDesc(&texDesc);
 
-  switch (texDesc.SampleDesc.Count) {
-    case 1:
-      Context1->PSSetShader(PS, nullptr, 0);
-      break;
-    case 2:
-      Context1->PSSetShader(PS_MS2, nullptr, 0);
-      break;
-    case 4:
-      Context1->PSSetShader(PS_MS4, nullptr, 0);
-      break;
-    default:
-      // Need to include additional sample levels
-      OVR_ASSERT(false);
+  if (texDesc.SampleDesc.Count == 1) {
+    Context1->PSSetShader(PS[PixelShaders::OneMSAA], nullptr, 0);
+  } else {
+    Context1->PSSetShader(PS[PixelShaders::TwoOrMoreMSAA], nullptr, 0);
   }
 
   static const uint32_t stride = sizeof(BltVertex);
@@ -298,8 +296,7 @@ void D3DTextureWriter::Shutdown() {
   device.Clear();
   textureCopy.Clear();
   textureCopyDesc = {};
-  pixels.clear();
-  pixels.shrink_to_fit(); // Frees any memory associated with the container.
+  pixels.reset();
 }
 
 void D3DTextureWriter::SetDevice(ID3D11Device* deviceNew) {
@@ -312,11 +309,51 @@ void D3DTextureWriter::SetDevice(ID3D11Device* deviceNew) {
   }
 }
 
-D3DTextureWriter::Result D3DTextureWriter::SaveTexture(
+D3DTextureWriter::Result D3DTextureWriter::SavePixelsToBMP(const wchar_t* path) {
+  // Create & write the file
+  ScopedFileHANDLE bmpFile(CreateFileW(
+      path, FILE_GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+
+  if (!bmpFile.IsValid()) {
+    return Result::FILE_CREATION_FAILURE;
+  }
+
+  const int BytesPerPixel = 4;
+  const auto PixelsWidth = pixelsDimentions.first;
+  const auto PixelsHeight = pixelsDimentions.second;
+  const auto ImageSize = PixelsWidth * PixelsHeight * BytesPerPixel;
+
+  BITMAPFILEHEADER bfh{};
+  bfh.bfType = 0x4d42;
+  bfh.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + ImageSize;
+  bfh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+  BITMAPINFOHEADER bih{};
+  bih.biSize = sizeof(bih);
+  bih.biBitCount = 8 * (WORD)BytesPerPixel;
+  bih.biPlanes = 1;
+  bih.biWidth = PixelsWidth;
+  bih.biHeight = PixelsHeight;
+  bih.biSizeImage = ImageSize;
+
+  DWORD bytesWritten = 0;
+  WriteFile(bmpFile.Get(), &bfh, sizeof(bfh), &bytesWritten, nullptr);
+  WriteFile(bmpFile.Get(), &bih, sizeof(bih), &bytesWritten, nullptr);
+
+  size_t offset = PixelsWidth * (PixelsHeight - 1);
+  for (uint32_t y = 0; y < PixelsHeight; ++y) {
+    WriteFile(
+        bmpFile.Get(), pixels.get() + offset, PixelsWidth * BytesPerPixel, &bytesWritten, nullptr);
+    offset -= PixelsWidth;
+  }
+
+  return Result::SUCCESS;
+}
+
+D3DTextureWriter::Result D3DTextureWriter::GrabPixels(
     ID3D11Texture2D* texture,
     UINT subresource,
     bool copyTexture,
-    const wchar_t* path,
     const ovrTimewarpProjectionDesc* depthProj,
     const float* linearDepthScale) {
   if (texture == nullptr)
@@ -381,7 +418,11 @@ D3DTextureWriter::Result D3DTextureWriter::SaveTexture(
 
   // Now copy textureSource to pixels, converting textureSource's format as-needed to make pixels be
   // BGRA.
-  pixels.resize(textureDesc.Width * textureDesc.Height);
+  if (pixelsDimentions.first != textureDesc.Width ||
+      pixelsDimentions.second != textureDesc.Height) {
+    pixels.reset(new uint32_t[textureDesc.Width * textureDesc.Height]);
+    pixelsDimentions = {textureDesc.Width, textureDesc.Height};
+  }
 
   if (textureDesc.Format == DXGI_FORMAT_R11G11B10_FLOAT) {
     // Convert from R11G11B10_FLOAT to R8G8B8
@@ -509,29 +550,35 @@ D3DTextureWriter::Result D3DTextureWriter::SaveTexture(
       (textureDesc.Format == DXGI_FORMAT_B8G8R8A8_UNORM) ||
       (textureDesc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) ||
       (textureDesc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS)) {
-    // Copy BGRA texture line by line
-    memcpy(pixels.data(), mapped.pData, mapped.RowPitch * textureDesc.Height);
+    if (mapped.RowPitch != textureDesc.Height * sizeof(uint32_t)) {
+      // Copy BGRA texture line by line
+      auto src = static_cast<uint8_t*>(mapped.pData);
+      auto end = src + mapped.RowPitch * textureDesc.Height;
+      for (auto dst = pixels.get(); src < end; src += mapped.RowPitch, dst += textureDesc.Width) {
+        memcpy(dst, src, textureDesc.Width * sizeof(uint32_t));
+      }
+    } else {
+      memcpy(pixels.get(), mapped.pData, mapped.RowPitch * textureDesc.Height);
+    }
   } else if (
       (textureDesc.Format == DXGI_FORMAT_R8G8B8A8_UNORM) ||
       (textureDesc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) ||
       (textureDesc.Format == DXGI_FORMAT_R8G8B8A8_UINT) ||
       (textureDesc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS)) {
     // Convert from RGBA to BGRA.
-    for (uint32_t y = 0; y < textureDesc.Height; ++y) {
-      for (uint32_t x = 0; x < textureDesc.Width; ++x) {
-        const uint8_t* rgba = (uint8_t*)mapped.pData + (y * mapped.RowPitch) + (x * 4);
-        uint32_t bgra = (rgba[3] << 24) | (rgba[0] << 16) | (rgba[1] << 8) | rgba[2];
-        pixels[(y * textureDesc.Width) + x] = bgra;
-      }
+    auto dst = pixels.get();
+    auto src = static_cast<uint8_t*>(mapped.pData);
+    auto end = src + mapped.RowPitch * textureDesc.Height;
+    for (; src < end; src += mapped.RowPitch) {
+      dst = ConvertRGBA2BGRA(reinterpret_cast<uint32_t*>(src), dst, textureDesc.Width);
     }
   } else {
     // DXGI_FORMAT_NV12, DXGI_FORMAT_R8_UNORM, DXGI_FORMAT_R8_UINT, possibly others.
     uint32_t inputPitchInBytes = mapped.RowPitch;
-    uint32_t pixelWidthInBytes = mapped.DepthPitch;
 
     for (uint32_t y = 0; y < textureDesc.Height; ++y) {
       for (uint32_t x = 0; x < textureDesc.Width; ++x) {
-        uint8_t c = ((uint8_t*)mapped.pData)[(y * inputPitchInBytes) + x * pixelWidthInBytes];
+        uint8_t c = ((uint8_t*)mapped.pData)[(y * inputPitchInBytes) + x];
         uint32_t bgra = (0xff << 24) | (c << 16) | (c << 8) | c; // Write as an RGB-based gray.
 
         pixels[(y * textureDesc.Width) + x] = bgra;
@@ -541,46 +588,91 @@ D3DTextureWriter::Result D3DTextureWriter::SaveTexture(
 
   deviceContext->Unmap(textureSource, 0); // Always succeeds.
 
-  // Create & write the file
-  ScopedFileHANDLE bmpFile(CreateFileW(
-      path, FILE_GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
-
-  if (!bmpFile.IsValid()) {
-    return Result::FILE_CREATION_FAILURE;
-  }
-
-  const int BytesPerPixel = 4;
-
-  BITMAPFILEHEADER bfh{};
-  bfh.bfType = 0x4d42;
-  bfh.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) +
-      (textureDesc.Width * textureDesc.Height * BytesPerPixel);
-  bfh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-
-  BITMAPINFOHEADER bih{};
-  bih.biSize = sizeof(bih);
-  bih.biBitCount = 8 * (WORD)BytesPerPixel;
-  bih.biPlanes = 1;
-  bih.biWidth = textureDesc.Width;
-  bih.biHeight = textureDesc.Height;
-  bih.biSizeImage = textureDesc.Width * textureDesc.Height * BytesPerPixel;
-
-  DWORD bytesWritten = 0;
-  WriteFile(bmpFile.Get(), &bfh, sizeof(bfh), &bytesWritten, nullptr);
-  WriteFile(bmpFile.Get(), &bih, sizeof(bih), &bytesWritten, nullptr);
-
-  size_t offset = textureDesc.Width * (textureDesc.Height - 1);
-  for (uint32_t y = 0; y < textureDesc.Height; ++y) {
-    WriteFile(
-        bmpFile.Get(),
-        pixels.data() + offset,
-        textureDesc.Width * BytesPerPixel,
-        &bytesWritten,
-        nullptr);
-    offset -= textureDesc.Width;
-  }
-
   return Result::SUCCESS;
+}
+
+uint32_t*
+D3DTextureWriter::ConvertRGBA2BGRA(const uint32_t* src, uint32_t* dst, unsigned pixelCount) {
+#ifdef OVR_64BIT_POINTERS
+  auto src2 = reinterpret_cast<const uint64_t*>(src);
+  auto dst2 = reinterpret_cast<uint64_t*>(dst);
+  auto lineEnd = src2 + (pixelCount >> 1);
+  // Convert 2 pixels at a time on 64-bit platforms
+  while (src2 < lineEnd) {
+    auto pixel = *src2++;
+    *dst2++ = (pixel & 0xff00ff00ff00ff00LL) | ((pixel & 0xff000000ffLL) << 16) |
+        ((pixel >> 16) & 0xff000000ffLL);
+  }
+  if ((pixelCount & 1) == 0) {
+    return reinterpret_cast<uint32_t*>(dst2);
+  }
+  // Convert remaining odd pixel
+  auto pixel = *reinterpret_cast<const uint32_t*>(src2);
+  dst = reinterpret_cast<uint32_t*>(dst2);
+  *dst++ = (pixel & 0xff00ff00) | ((pixel & 0xff) << 16) | ((pixel >> 16) & 0xff);
+#else
+  auto lineEnd = src + pixelCount;
+  while (src < lineEnd) {
+    auto pixel = *src++;
+    *dst++ = (pixel & 0xff00ff00) | ((pixel & 0xff) << 16) | ((pixel >> 16) & 0xff);
+  }
+#endif
+  return dst;
+}
+
+char* D3DTextureWriter::ConvertBGRA2RGB(const uint32_t* src, char* byteDst, unsigned pixelCount) {
+// Convert a stream of 16 byte quadruplets B1G1R1A1|B2R2G2A2|B3G3R3A3|B4G4R4A4
+//                   into 12 byte triplets R1G1B1R2|G2B2R3G3|B3R4G4B4
+#ifdef OVR_CPU_SSE
+  const auto* lineSrc = reinterpret_cast<const __m128i*>(src);
+  const auto* lineEnd = reinterpret_cast<const __m128i*>(src + (pixelCount & ~3));
+  auto shuffle = _mm_set_epi8(-1, -1, -1, -1, 12, 13, 14, 8, 9, 10, 4, 5, 6, 0, 1, 2);
+  auto storeMask = _mm_set_epi8(0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+  while (lineSrc < lineEnd) {
+    __m128i invec = _mm_lddqu_si128(lineSrc++);
+    invec = _mm_shuffle_epi8(invec, shuffle);
+    _mm_maskmoveu_si128(invec, storeMask, byteDst);
+    byteDst += 12;
+  }
+#else
+  auto dst = reinterpret_cast<uint32_t*>(byteDst);
+  auto quadEnd = reinterpret_cast<uint32_t*>(byteDst + 3 * (pixelCount & ~3));
+  while (dst < quadEnd) {
+    auto pixel1 = *src++;
+    auto pixel2 = *src++;
+    auto pixel3 = *src++;
+    auto pixel4 = *src++;
+    *dst++ = ((pixel1 >> 16) & 0xff) | (pixel1 & 0x0000ff00) | ((pixel1 << 16) & 0x00ff0000) |
+        ((pixel2 << 8) & 0xff000000);
+    *dst++ = ((pixel2 >> 8) & 0xff) | ((pixel2 << 8) & 0x0000ff00) | (pixel3 & 0x00ff0000) |
+        ((pixel3 << 16) & 0xff000000);
+    *dst++ = (pixel3 & 0xff) | ((pixel4 >> 8) & 0x0000ff00) | ((pixel4 << 8) & 0x00ff0000) |
+        ((pixel4 << 24) & 0xff000000);
+  }
+  byteDst = reinterpret_cast<char*>(dst);
+#endif
+  // Convert the reminder
+  for (UINT x = (pixelCount & ~3); x < pixelCount; ++x) {
+    auto pixel = *src++;
+    *byteDst++ = (pixel >> 16) & 0xff;
+    *byteDst++ = (pixel >> 8) & 0xff;
+    *byteDst++ = pixel & 0xff;
+  }
+  return byteDst;
+}
+
+D3DTextureWriter::Result D3DTextureWriter::SaveTexture(
+    ID3D11Texture2D* texture,
+    UINT subresource,
+    bool copyTexture,
+    const wchar_t* path,
+    const ovrTimewarpProjectionDesc* depthProj,
+    const float* linearDepthScale) {
+  auto rc = GrabPixels(texture, subresource, copyTexture, depthProj, linearDepthScale);
+  if (rc != Result::SUCCESS) {
+    return rc;
+  }
+  return SavePixelsToBMP(path);
 }
 } // namespace D3DUtil
 } // namespace OVR

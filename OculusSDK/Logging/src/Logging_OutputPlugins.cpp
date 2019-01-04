@@ -5,7 +5,7 @@ Content     :   Logging output plugins
 Created     :   Oct 26, 2015
 Authors     :   Chris Taylor
 
-Copyright   :   Copyright 2015-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -24,8 +24,8 @@ limitations under the License.
 
 ************************************************************************************/
 
-#include "Logging_OutputPlugins.h"
-#include "Logging_Tools.h"
+#include "Logging/Logging_OutputPlugins.h"
+#include "Logging/Logging_Tools.h"
 
 #include <iostream>
 #include <time.h>
@@ -36,13 +36,20 @@ namespace ovrlog {
 //-----------------------------------------------------------------------------
 // Console
 
-OutputConsole::OutputConsole()
+OutputConsole::OutputConsole(bool useStdio)
+  : UseStdio(useStdio)
 {
 }
 
 OutputConsole::~OutputConsole()
 {
 }
+
+void OutputConsole::SetStdioUsage(bool enable)
+{
+    UseStdio = enable;
+}
+
 
 const char* OutputConsole::GetUniquePluginName()
 {
@@ -55,12 +62,15 @@ void OutputConsole::Write(Level level, const char* /*subsystem*/, const char* he
         HANDLE hConsole = ::GetStdHandle(STD_OUTPUT_HANDLE);
         
         // Save current console attributes
-        CONSOLE_SCREEN_BUFFER_INFO bufInfo = { 0 };
+        CONSOLE_SCREEN_BUFFER_INFO bufInfo{};
         BOOL oldAttrValid = ::GetConsoleScreenBufferInfo(hConsole, &bufInfo);
         WORD attr = 0;
 
         switch (level)
         {
+        case Level::Disabled: // Shouldn't occur, but we handle for consistency.
+            attr |= FOREGROUND_BLUE;
+            break;
         case Level::Trace:
             attr |= FOREGROUND_BLUE | FOREGROUND_RED;
             break;
@@ -79,18 +89,35 @@ void OutputConsole::Write(Level level, const char* /*subsystem*/, const char* he
         default:
             break;
         }
-        static_assert(Level::Count == static_cast<Level>(5), "Needs updating");
+        static_assert(Level::Count == static_cast<Level>(6), "Needs updating");
 
         ::SetConsoleTextAttribute(hConsole, attr & ~FOREGROUND_INTENSITY);
 
-        std::cout << header;
+        if (UseStdio)
+            std::cout << header;
+        else
+        {
+            DWORD dwCount;
+            DWORD headerLength = (DWORD)strlen(header);
+
+            WriteConsoleA(hConsole, header, headerLength, &dwCount, nullptr);
+        }
 
         if ((attr & FOREGROUND_INTENSITY) != 0)
         {
             ::SetConsoleTextAttribute(hConsole, attr);
         }
 
-        std::cout << utf8msg << std::endl;
+        if (UseStdio)
+            std::cout << utf8msg << std::endl;
+        else
+        {
+            DWORD dwCount;
+            DWORD msgLength = (DWORD)strlen(utf8msg);
+
+            WriteConsoleA(hConsole, utf8msg, msgLength, &dwCount, nullptr);
+            WriteConsoleA(hConsole, "\n", 1, &dwCount, nullptr);
+        }
 
         // Restore original attributes, if saved
         if ( TRUE == oldAttrValid )
@@ -98,9 +125,33 @@ void OutputConsole::Write(Level level, const char* /*subsystem*/, const char* he
             ::SetConsoleTextAttribute(hConsole, bufInfo.wAttributes);
         }
     #else
-        (void)level;
-        std::cout << header;
-        std::cout << utf8msg << std::endl;
+
+        FILE* output = stdout;
+
+        switch(level)
+        {
+        case Level::Trace:
+          break;
+        case Level::Debug:
+          break;
+        case Level::Info:
+          break;
+        case Level::Warning:
+          output = stderr;
+          fprintf(output, "\e[38;5;255m\e[48;5;208m");
+          break;
+        case Level::Error:
+          output = stderr;
+          fprintf(output, "\e[38;5;255m\e[48;5;196m");
+          break;
+        default:
+          break;
+        }
+
+        fprintf(output, "%s", header);
+        fprintf(output, "\e[0m ");
+
+        fprintf(output, "%s\n", utf8msg);
     #endif
 }
 
@@ -158,12 +209,10 @@ void OutputEventLog::Write(Level level, const char* subsystem, const char* heade
 
         switch (level)
         {
+        default:
+        case Level::Disabled:
         case Level::Trace:
-            mType = EVENTLOG_INFORMATION_TYPE;
-            return; // Do not log at this level.
         case Level::Debug:
-            mType = EVENTLOG_INFORMATION_TYPE;
-            return; // Do not log at this level.
         case Level::Info:
             mType = EVENTLOG_INFORMATION_TYPE;
             return; // Do not log at this level.
@@ -171,14 +220,12 @@ void OutputEventLog::Write(Level level, const char* subsystem, const char* heade
         case Level::Warning:
             mType = EVENTLOG_WARNING_TYPE;
             break; // Log at this level.
+
         case Level::Error:
             mType = EVENTLOG_ERROR_TYPE;
             break; // Log at this level.
-
-        default:
-            break;
         }
-        static_assert(Level::Count == static_cast<Level>(5), "Needs updating");
+        static_assert(Level::Count == static_cast<Level>(6), "Needs updating");
 
         const size_t MAX_REPORT_EVENT_A_LEN = 31839;
 

@@ -4,7 +4,7 @@ Filename    :   OVR_Log.h
 Content     :   Logging support
 Created     :   September 19, 2012
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -35,7 +35,7 @@ template <typename... Args>
 void LogError(Args&&...) {}
 template <typename... Args>
 void LogDebug(Args&&...) {}
-}
+} // namespace OVR
 
 #define OVR_DEBUG_LOG(args) \
   do {                      \
@@ -56,7 +56,7 @@ struct Channel {
   template <typename... Args>
   void LogWarningF(Args&&...) {}
 };
-}
+} // namespace ovrlog
 
 #else
 
@@ -64,7 +64,7 @@ struct Channel {
 #include "OVR_Std.h"
 #include "OVR_String.h"
 
-#include "Logging_Library.h"
+#include "Logging/Logging_Library.h"
 
 #if defined(__clang__)
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -89,7 +89,10 @@ template <typename... Args>
 inline void LogText(Args&&... args) {
   if (DefaultChannel.Active(ovrlog::Level::Info)) {
     char buffer[512];
+#pragma warning(push)
+#pragma warning(disable : 4840)
     int written = snprintf(buffer, sizeof(buffer), args...);
+#pragma warning(pop)
     if (written <= 0 || written >= (int)sizeof(buffer)) {
       OVR_ASSERT(false); // This call should be converted to the new log system.
       return;
@@ -108,7 +111,10 @@ template <typename... Args>
 inline void LogError(Args&&... args) {
   if (DefaultChannel.Active(ovrlog::Level::Error)) {
     char buffer[512];
+#pragma warning(push)
+#pragma warning(disable : 4840)
     int written = snprintf(buffer, sizeof(buffer), args...);
+#pragma warning(pop)
     if (written <= 0 || written >= (int)sizeof(buffer)) {
       OVR_ASSERT(false); // This call should be converted to the new log system.
       return;

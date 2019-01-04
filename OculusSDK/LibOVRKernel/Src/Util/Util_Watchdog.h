@@ -5,7 +5,7 @@ Content     :   Deadlock reaction
 Created     :   June 27, 2013
 Authors     :   Kevin Jenkins, Chris Taylor
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -33,7 +33,6 @@ limitations under the License.
 #include "Kernel/OVR_String.h"
 #include "Kernel/OVR_System.h"
 #include "Kernel/OVR_Threads.h"
-#include "Logging_Library.h"
 #include <thread>
 
 namespace OVR {
@@ -83,7 +82,7 @@ class WatchDogObserver : public SystemSingletonBase<WatchDogObserver> {
 
   // This is the delay between deciding a deadlock occurred and terminating the process, to allow
   // for logging
-  static const int TerminationDelayMsec = 10000; // 10 seconds in msec
+  const int TerminationDelayMsec = 10000; // 10 seconds in msec
 
   // Enable/disable auto-terminate on deadlock report
   // IsDeadlocked() will return true, and after TerminationDelayMsec it will exit the process
@@ -139,7 +138,7 @@ class WatchDogObserver : public SystemSingletonBase<WatchDogObserver> {
   void Add(WatchDog* dog);
   void Remove(WatchDog* dog);
 };
-}
-} // namespace OVR::Util
+} // namespace Util
+} // namespace OVR
 
 #endif // OVR_Util_Watchdog_h

@@ -3,7 +3,7 @@
 Filename    :   OVR_Error.h
 Content     :   Structs and functions for handling OVRErrors
 Created     :   February 15, 2015
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -133,7 +133,9 @@ namespace OVR {
 #define OVR_MAKE_ERROR(errorCode, pDescription) \
   OVR::MakeError(                               \
       (errorCode),                              \
+      OVR::ovrSysErrorCodeType::None,           \
       OVR::ovrSysErrorCodeSuccess,              \
+      nullptr,                                  \
       OVR_FILE,                                 \
       OVR_LINE,                                 \
       true,                                     \
@@ -146,7 +148,9 @@ namespace OVR {
 #define OVR_MAKE_ERROR_F(errorCode, ...) \
   OVR::MakeError(                        \
       (errorCode),                       \
+      OVR::ovrSysErrorCodeType::None,    \
       OVR::ovrSysErrorCodeSuccess,       \
+      nullptr,                           \
       OVR_FILE,                          \
       OVR_LINE,                          \
       true,                              \
@@ -156,11 +160,31 @@ namespace OVR {
 
 #define OVR_MAKE_SYS_ERROR(errorCode, sysErrorCode, pDescription) \
   OVR::MakeError(                                                 \
-      (errorCode), (sysErrorCode), OVR_FILE, OVR_LINE, true, true, nullptr, "%s", (pDescription))
+      (errorCode),                                                \
+      OVR::ovrSysErrorCodeType::OS,                               \
+      (sysErrorCode),                                             \
+      nullptr,                                                    \
+      OVR_FILE,                                                   \
+      OVR_LINE,                                                   \
+      true,                                                       \
+      true,                                                       \
+      nullptr,                                                    \
+      "%s",                                                       \
+      (pDescription))
 
 // Note: The format string is the first part of the .../__VA_ARGS__ as per the C99-C++11 Standards.
 #define OVR_MAKE_SYS_ERROR_F(errorCode, sysErrorCode, ...) \
-  OVR::MakeError((errorCode), (sysErrorCode), OVR_FILE, OVR_LINE, true, true, nullptr, __VA_ARGS__)
+  OVR::MakeError(                                          \
+      (errorCode),                                         \
+      OVR::ovrSysErrorCodeType::OS,                        \
+      (sysErrorCode),                                      \
+      nullptr,                                             \
+      OVR_FILE,                                            \
+      OVR_LINE,                                            \
+      true,                                                \
+      true,                                                \
+      nullptr,                                             \
+      __VA_ARGS__)
 
 // Consider using OVR_MAKE_QUIET_ERROR() instead of OVR_MAKE_ERROR() where the error
 // should not automatically log/assert.  If the error is normal (HMD unplugged) or
@@ -169,7 +193,9 @@ namespace OVR {
 #define OVR_MAKE_QUIET_ERROR(errorCode, pDescription) \
   OVR::MakeError(                                     \
       (errorCode),                                    \
+      OVR::ovrSysErrorCodeType::None,                 \
       OVR::ovrSysErrorCodeSuccess,                    \
+      nullptr,                                        \
       OVR_FILE,                                       \
       OVR_LINE,                                       \
       false,                                          \
@@ -182,7 +208,9 @@ namespace OVR {
 #define OVR_MAKE_QUIET_ERROR_F(errorCode, ...) \
   OVR::MakeError(                              \
       (errorCode),                             \
+      OVR::ovrSysErrorCodeType::None,          \
       OVR::ovrSysErrorCodeSuccess,             \
+      nullptr,                                 \
       OVR_FILE,                                \
       OVR_LINE,                                \
       false,                                   \
@@ -193,7 +221,9 @@ namespace OVR {
 #define OVR_MAKE_QUIET_SYS_ERROR(errorCode, sysErrorCode, pDescription) \
   OVR::MakeError(                                                       \
       (errorCode),                                                      \
+      OVR::ovrSysErrorCodeType::OS,                                     \
       (sysErrorCode),                                                   \
+      nullptr,                                                          \
       OVR_FILE,                                                         \
       OVR_LINE,                                                         \
       false,                                                            \
@@ -205,7 +235,16 @@ namespace OVR {
 // Note: The format string is the first part of the .../__VA_ARGS__ as per the C99-C++11 Standards.
 #define OVR_MAKE_QUIET_SYS_ERROR_F(errorCode, sysErrorCode, ...) \
   OVR::MakeError(                                                \
-      (errorCode), (sysErrorCode), OVR_FILE, OVR_LINE, false, false, nullptr, __VA_ARGS__)
+      (errorCode),                                               \
+      ovrSysErrorCodeType::OS,                                   \
+      (sysErrorCode),                                            \
+      nullptr,                                                   \
+      OVR_FILE,                                                  \
+      OVR_LINE,                                                  \
+      false,                                                     \
+      false,                                                     \
+      nullptr,                                                   \
+      __VA_ARGS__)
 
 // Consider using OVR_MAKE_NOASSERT_ERROR() instead of OVR_MAKE_ERROR() where the error
 // should not automatically log/assert.  If the error is normal (HMD unplugged) or
@@ -214,7 +253,9 @@ namespace OVR {
 #define OVR_MAKE_NOASSERT_ERROR(errorCode, pDescription) \
   OVR::MakeError(                                        \
       (errorCode),                                       \
+      OVR::ovrSysErrorCodeType::None,                    \
       OVR::ovrSysErrorCodeSuccess,                       \
+      nullptr,                                           \
       OVR_FILE,                                          \
       OVR_LINE,                                          \
       true,                                              \
@@ -227,7 +268,9 @@ namespace OVR {
 #define OVR_MAKE_NOASSERT_ERROR_F(errorCode, ...) \
   OVR::MakeError(                                 \
       (errorCode),                                \
+      OVR::ovrSysErrorCodeType::None,             \
       OVR::ovrSysErrorCodeSuccess,                \
+      nullptr,                                    \
       OVR_FILE,                                   \
       OVR_LINE,                                   \
       true,                                       \
@@ -237,22 +280,39 @@ namespace OVR {
 
 #define OVR_MAKE_NOASSERT_SYS_ERROR(errorCode, sysErrorCode, pDescription) \
   OVR::MakeError(                                                          \
-      (errorCode), (sysErrorCode), OVR_FILE, OVR_LINE, true, false, nullptr, "%s", (pDescription))
+      (errorCode),                                                         \
+      OVR::ovrSysErrorCodeType::OS,                                        \
+      (sysErrorCode),                                                      \
+      nullptr,                                                             \
+      OVR_FILE,                                                            \
+      OVR_LINE,                                                            \
+      true,                                                                \
+      false,                                                               \
+      nullptr,                                                             \
+      "%s",                                                                \
+      (pDescription))
 
 // Note: The format string is the first part of the .../__VA_ARGS__ as per the C99-C++11 Standards.
 #define OVR_MAKE_NOASSERT_SYS_ERROR_F(errorCode, sysErrorCode, ...) \
-  OVR::MakeError((errorCode), (sysErrorCode), OVR_FILE, OVR_LINE, true, false, nullptr, __VA_ARGS__)
+  OVR::MakeError(                                                   \
+      (errorCode),                                                  \
+      OVR::ovrSysErrorCodeType::OS,                                 \
+      (sysErrorCode),                                               \
+      nullptr,                                                      \
+      OVR_FILE,                                                     \
+      OVR_LINE,                                                     \
+      true,                                                         \
+      false,                                                        \
+      nullptr,                                                      \
+      __VA_ARGS__)
 
 // Set the TLS last error:
-
 #define OVR_SET_ERROR(ovrError) OVR::SetError(ovrError)
 
 // Log the error if it has not already been logged:
-
 #define OVR_LOG_ERROR(ovrError) OVR::LogError(ovrError)
 
 // Check an HRESULT error code and assert/log on failure:
-
 #define OVR_HR_CHECK_RET_ERROR(errorCode, sysErrorCode, pDescription)               \
   if (FAILED(sysErrorCode)) {                                                       \
     return OVR_MAKE_SYS_ERROR_F((errorCode), (sysErrorCode), "%s", (pDescription)); \
@@ -265,11 +325,21 @@ namespace OVR {
   }
 
 /// -----------------------------------------------------------------------------
+/// ***** ovrSysErrorCodeType
+///
+enum class ovrSysErrorCodeType {
+  None,
+  OS, /// Windows: HRESULT or DWORD system error code from GetLastError.
+  ALVR, /// AMD LiquidVR error
+  NVAPI, /// NVidia API error
+  NVENC /// NVidia video encode API error
+};
+
+/// -----------------------------------------------------------------------------
 /// ***** ovrSysErrorCode
 ///
-/// Identifies a platform-specific error identifier.
-/// For Windows this means an HRESULT or DWORD system error code from GetLastError.
-/// For Unix this means errno.
+/// Identifies a platform- or API-specific error identifier.
+/// The error space is identified by ovrSysErrorCodeType.
 ///
 typedef uint32_t ovrSysErrorCode;
 
@@ -351,7 +421,11 @@ class OVRError {
   void SetCode(ovrResult code);
   ovrResult GetCode() const;
 
-  void SetSysCode(ovrSysErrorCode sysCode);
+  void SetSysCode(
+      ovrSysErrorCodeType sysCodeType,
+      ovrSysErrorCode sysCode,
+      const char* sysCodeString = nullptr);
+  ovrSysErrorCodeType GetSysCodeType() const;
   ovrSysErrorCode GetSysCode() const;
 
   void SetDescription(const char* pDescription);
@@ -389,9 +463,11 @@ class OVRError {
   static void RegisterResultCodeName(ovrResult number, const char* name);
 
  protected:
+  mutable StringBuffer ErrorString; /// Complete error string describing the variables below.
   ovrResult Code; /// The main ovrResult, which is a high level error id.
-  ovrSysErrorCode SysCode; /// May be ovrSysErrorCodeSuccess to indicate there isn't a relevant
-  /// system error code.
+  ovrSysErrorCodeType SysCodeType;
+  ovrSysErrorCode SysCode; /// ovrSysErrorCodeSuccess means no system error code.
+  char SysCodeStr[64]; /// String describing just the sys code error.
   String Description; /// Unlocalized error description string.
   String Context; /// Context string. For example, for a file open failure this is the file path.
   double OVRTime; /// Time when the error was generated. Same format as OVR time.
@@ -427,7 +503,9 @@ void LogError(OVRError& ovrError);
 ///
 OVRError MakeError(
     ovrResult errorCode,
+    ovrSysErrorCodeType sysCodeType,
     ovrSysErrorCode sysCode,
+    const char* sysCodeString, // Optional pre-generated sys error code string.
     const char* pSourceFile,
     int sourceLine,
     bool logError,

@@ -3,7 +3,7 @@
 Filename    :   CAPI_GLE.cpp
 Content     :   OpenGL Extensions support. Implements a stripped down glew-like
                 interface with some additional functionality.
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -143,7 +143,8 @@ OVR::GLEContext::GLEContext()
 }
 
 OVR::GLEContext::~GLEContext() {
-  // Currently empty
+  if (GetCurrentContext() == this)
+    SetCurrentContext(NULL);
 }
 
 void OVR::GLEContext::Init() {
@@ -539,6 +540,13 @@ void OVR::GLEContext::InitExtensionLoad() {
   GLELoadProc(glBlendFuncSeparatei_Impl, glBlendFuncSeparatei);
   GLELoadProc(glBlendFunci_Impl, glBlendFunci);
   GLELoadProc(glMinSampleShading_Impl, glMinSampleShading);
+
+  // GL_VERSION_4_2
+  GLELoadProc(glMemoryBarrier_Impl, glMemoryBarrier);
+
+  // GL_VERSION_4_3
+  GLELoadProc(glDispatchCompute_Impl, glDispatchCompute);
+  GLELoadProc(glBindImageTexture_Impl, glBindImageTexture);
 
   // GL_AMD_debug_output
   GLELoadProc(glDebugMessageCallbackAMD_Impl, glDebugMessageCallbackAMD);
@@ -936,9 +944,9 @@ void OVR::GLEContext::InitPlatformVersion() {
 
 void OVR::GLEContext::InitPlatformExtensionLoad() {
 #if defined(GLE_WGL_ENABLED)
-// WGL
-// We don't load these as function pointers but rather statically link to them.
-// These need to be loaded via LoadLibrary instead of wglLoadLibrary.
+  // WGL
+  // We don't load these as function pointers but rather statically link to them.
+  // These need to be loaded via LoadLibrary instead of wglLoadLibrary.
 
 #if 0
             HINSTANCE hOpenGL = LoadLibraryW(L"Opengl32.dll");
@@ -1971,7 +1979,7 @@ void GLEContext::glEnable_Hook(GLenum cap) {
   glEnable(cap);
   PostHook(GLE_CURRENT_FUNCTION);
 }
-}
+} // namespace OVR
 
 #undef glEnableClientState
 extern "C" {

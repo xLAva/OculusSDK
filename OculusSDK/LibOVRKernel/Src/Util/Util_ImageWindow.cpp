@@ -5,7 +5,7 @@ Content     :   An output object for windows that can display raw images for tes
 Created     :   March 13, 2014
 Authors     :   Dean Beeler
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -99,9 +99,9 @@ LRESULT CALLBACK MainWndProcW(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
       // Clean up window-specific data objects.
       return 0;
 
-    //
-    // Process other messages.
-    //
+      //
+      // Process other messages.
+      //
 
     default:
       return DefWindowProcW(hwnd, uMsg, wParam, lParam);
@@ -147,7 +147,7 @@ ImageWindow::ImageWindow(uint32_t width, uint32_t height)
         __uuidof(ID2D1Factory),
         NULL,
         &pD2DFactory // This will be AddRef'd for us.
-        );
+    );
     OVR_ASSERT_AND_UNUSED(hResult == S_OK, hResult);
 
     // Create a DirectWrite factory.
@@ -155,7 +155,7 @@ ImageWindow::ImageWindow(uint32_t width, uint32_t height)
         DWRITE_FACTORY_TYPE_SHARED,
         __uuidof(pDWriteFactory), // This probably should instead be __uuidof(IDWriteFactory)
         reinterpret_cast<IUnknown**>(&pDWriteFactory) // This will be AddRef'd for us.
-        );
+    );
     OVR_ASSERT_AND_UNUSED(hResult == S_OK, hResult);
   }
 
@@ -522,8 +522,8 @@ void ImageWindow::addText(float x, float y, float r, float g, float b, OVR::Stri
     frame->textLines.PushBack(tp);
   }
 }
-}
-}
+} // namespace Util
+} // namespace OVR
 
 #else // defined(OVR_OS_WIN32)
 
@@ -532,7 +532,7 @@ namespace Util {
 
 ImageWindow* ImageWindow::globalWindow[4];
 int ImageWindow::windowCount = 0;
-}
-}
+} // namespace Util
+} // namespace OVR
 
 #endif //#else //defined(OVR_OS_WIN32)

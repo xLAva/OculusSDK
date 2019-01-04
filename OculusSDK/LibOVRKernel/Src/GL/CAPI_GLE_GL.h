@@ -2,7 +2,7 @@
 
 Filename    :   CAPI_GLE_GL.h
 Content     :   GL extensions declarations.
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -2313,6 +2313,7 @@ typedef GLboolean(GLAPIENTRY* PFNGLUNMAPBUFFERPROC)(GLenum target);
 #define GL_STENCIL_BACK_REF 0x8CA3
 #define GL_STENCIL_BACK_VALUE_MASK 0x8CA4
 #define GL_STENCIL_BACK_WRITEMASK 0x8CA5
+#define GL_COMPUTE_SHADER 0x91B9
 
 typedef void(GLAPIENTRY* PFNGLATTACHSHADERPROC)(GLuint program, GLuint shader);
 typedef void(
@@ -2666,6 +2667,28 @@ typedef void(GLAPIENTRY* PFNGLUNIFORMMATRIX4X3FVPROC)(
 #define GL_CONTEXT_FLAGS 0x821E
 #define GL_DEPTH_BUFFER 0x8223
 #define GL_STENCIL_BUFFER 0x8224
+#define GL_RG 0x8227
+#define GL_RG_INTEGER 0x8228
+#define GL_R8 0x8229
+#define GL_R16 0x822A
+#define GL_RG8 0x822B
+#define GL_RG16 0x822C
+#define GL_R16F 0x822D
+#define GL_R32F 0x822E
+#define GL_RG16F 0x822F
+#define GL_RG32F 0x8230
+#define GL_R8I 0x8231
+#define GL_R8UI 0x8232
+#define GL_R16I 0x8233
+#define GL_R16UI 0x8234
+#define GL_R32I 0x8235
+#define GL_R32UI 0x8236
+#define GL_RG8I 0x8237
+#define GL_RG8UI 0x8238
+#define GL_RG16I 0x8239
+#define GL_RG16UI 0x823A
+#define GL_RG32I 0x823B
+#define GL_RG32UI 0x823C
 #define GL_RGBA32F 0x8814
 #define GL_RGB32F 0x8815
 #define GL_RGBA16F 0x881A
@@ -3074,10 +3097,29 @@ typedef void(GLAPIENTRY* PFNGLMINSAMPLESHADINGPROC)(GLclampf value);
 #ifndef GL_VERSION_4_2
 #define GL_VERSION_4_2 1
 
+typedef void(GLAPIENTRY* PFNGLMEMORYBARRIER)(GLbitfield barriers);
+
+#define glMemoryBarrier GLEGetCurrentFunction(glMemoryBarrier)
+
 #define GL_COMPRESSED_RGBA_BPTC_UNORM 0x8E8C
 #define GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM 0x8E8D
 #define GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT 0x8E8E
 #define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT 0x8E8F
+
+#define GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT 0x00000001
+#define GL_ELEMENT_ARRAY_BARRIER_BIT 0x00000002
+#define GL_UNIFORM_BARRIER_BIT 0x00000004
+#define GL_TEXTURE_FETCH_BARRIER_BIT 0x00000008
+#define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT 0x00000020
+#define GL_COMMAND_BARRIER_BIT 0x00000040
+#define GL_PIXEL_BUFFER_BARRIER_BIT 0x00000080
+#define GL_TEXTURE_UPDATE_BARRIER_BIT 0x00000100
+#define GL_BUFFER_UPDATE_BARRIER_BIT 0x00000200
+#define GL_FRAMEBUFFER_BARRIER_BIT 0x00000400
+#define GL_TRANSFORM_FEEDBACK_BARRIER_BIT 0x00000800
+#define GL_ATOMIC_COUNTER_BARRIER_BIT 0x00001000
+#define GL_ALL_BARRIER_BITS 0xFFFFFFFF
+
 #endif
 
 #ifndef GL_VERSION_4_3
@@ -3086,6 +3128,22 @@ typedef void(GLAPIENTRY* PFNGLMINSAMPLESHADINGPROC)(GLclampf value);
 #define GL_NUM_SHADING_LANGUAGE_VERSIONS 0x82E9
 #define GL_VERTEX_ATTRIB_ARRAY_LONG 0x874E
 #endif
+
+typedef void(GLAPIENTRY* PFNGLDISPATCHCOMPUTEPROC)(
+    GLuint num_groups_x,
+    GLuint num_groups_y,
+    GLuint num_groups_z);
+typedef void(GLAPIENTRY* PFNGLBINDIMAGETEXTUREPROC)(
+    GLuint unit,
+    GLuint texture,
+    GLint level,
+    GLboolean layered,
+    GLint layer,
+    GLenum access,
+    GLenum format);
+
+#define glDispatchCompute GLEGetCurrentFunction(glDispatchCompute)
+#define glBindImageTexture GLEGetCurrentFunction(glBindImageTexture);
 
 #ifndef GL_VERSION_4_4
 #define GL_VERSION_4_4 1

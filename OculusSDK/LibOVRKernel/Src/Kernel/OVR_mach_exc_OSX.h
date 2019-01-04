@@ -100,18 +100,18 @@ extern
 
   __END_DECLS
 
-/********************** Caution **************************/
-/* The following data types should be used to calculate  */
-/* maximum message sizes only. The actual message may be */
-/* smaller, and the position of the arguments within the */
-/* message layout may vary from what is presented here.  */
-/* For example, if any of the arguments are variable-    */
-/* sized, and less than the maximum is sent, the data    */
-/* will be packed tight in the actual message to reduce  */
-/* the presence of holes.                                */
-/********************** Caution **************************/
+  /********************** Caution **************************/
+  /* The following data types should be used to calculate  */
+  /* maximum message sizes only. The actual message may be */
+  /* smaller, and the position of the arguments within the */
+  /* message layout may vary from what is presented here.  */
+  /* For example, if any of the arguments are variable-    */
+  /* sized, and less than the maximum is sent, the data    */
+  /* will be packed tight in the actual message to reduce  */
+  /* the presence of holes.                                */
+  /********************** Caution **************************/
 
-/* typedefs for all requests */
+  /* typedefs for all requests */
 
 #ifndef __Request__mach_exc_subsystem__defined
 #define __Request__mach_exc_subsystem__defined
@@ -175,7 +175,7 @@ extern
 #endif
 #endif /* !__Request__mach_exc_subsystem__defined */
 
-/* union of all requests */
+  /* union of all requests */
 
 #ifndef __RequestUnion__mach_exc_subsystem__defined
 #define __RequestUnion__mach_exc_subsystem__defined
@@ -185,7 +185,7 @@ extern
     __Request__mach_exception_raise_state_identity_t Request_mach_exception_raise_state_identity;
   };
 #endif /* !__RequestUnion__mach_exc_subsystem__defined */
-/* typedefs for all replies */
+  /* typedefs for all replies */
 
 #ifndef __Reply__mach_exc_subsystem__defined
 #define __Reply__mach_exc_subsystem__defined
@@ -233,7 +233,7 @@ extern
 #endif
 #endif /* !__Reply__mach_exc_subsystem__defined */
 
-/* union of all replies */
+  /* union of all replies */
 
 #ifndef __ReplyUnion__mach_exc_subsystem__defined
 #define __ReplyUnion__mach_exc_subsystem__defined

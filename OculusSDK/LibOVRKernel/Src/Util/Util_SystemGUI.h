@@ -3,7 +3,7 @@
 Filename    :   Util_SystemGUI.h
 Content     :   OS GUI access, usually for diagnostics.
 Created     :   October 20, 2014
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -37,7 +37,7 @@ bool DisplayMessageBox(const char* pTitle, const char* pText);
 bool DisplayMessageBoxF(const char* pTitle, const char* pFormat, ...);
 
 bool DisplayMessageBoxVaList(const char* pTitle, const char* pFormat, va_list argList);
-}
-} // namespace OVR::Util
+} // namespace Util
+} // namespace OVR
 
 #endif // OVR_Util_SystemGUI_h

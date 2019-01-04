@@ -5,7 +5,7 @@ Content     :   Tools for Logging
 Created     :   Oct 26, 2015
 Authors     :   Chris Taylor
 
-Copyright   :   Copyright 2015-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License"); 
 you may not use the Oculus VR Rift SDK except in compliance with the License, 
@@ -28,7 +28,7 @@ limitations under the License.
     #pragma warning(disable: 4530) // C++ exception handler used, but unwind semantics are not enabled
 #endif
 
-#include "Logging_Tools.h"
+#include "Logging/Logging_Tools.h"
 
 #include <assert.h>
 #include <time.h>
@@ -78,7 +78,7 @@ bool Terminator::Initialize()
         TerminateEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
     #else
         // To do: Implement this.
-        assert(false);
+        fprintf(stderr, __FILE__ "[%s] Not implemented.\n", __func__);
     #endif
     
     return TerminateEvent.IsValid();

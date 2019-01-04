@@ -61,7 +61,7 @@ JSON* GetSystemSpecs() {
       0, // Authority (for example, Kerberos)
       0, // Context object
       &pSvc // pointer to IWbemServices proxy
-      );
+  );
 
   if (FAILED(hres)) {
     pLoc->Release();
@@ -77,7 +77,7 @@ JSON* GetSystemSpecs() {
       RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
       NULL, // client identity
       EOAC_NONE // proxy capabilities
-      );
+  );
 
   if (FAILED(hres)) {
     pSvc->Release();

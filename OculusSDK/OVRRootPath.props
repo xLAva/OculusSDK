@@ -15,6 +15,7 @@ new .vcxproj files manually or copy an existing project.
     <OVRSDKROOT>$(MSBuildThisFileDirectory)</OVRSDKROOT>
     <VSDIR Condition="'$(PlatformToolset)'=='v120'">VS2013</VSDIR>
     <VSDIR Condition="'$(PlatformToolset)'=='v140'">VS2015</VSDIR>
+    <VSDIR Condition="'$(PlatformToolset)'=='v141'">VS2017</VSDIR>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />

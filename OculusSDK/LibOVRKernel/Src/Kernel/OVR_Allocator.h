@@ -5,7 +5,7 @@ Content     :   Installable memory allocator
 Created     :   September 19, 2012
 Notes       :
 
-Copyright   :   Copyright 2014-2016 Oculus VR, LLC All Rights reserved.
+Copyright   :   Copyright (c) Facebook Technologies, LLC and its affiliates. All rights reserved.
 
 Licensed under the Oculus VR Rift SDK License Version 3.3 (the "License");
 you may not use the Oculus VR Rift SDK except in compliance with the License,
@@ -711,7 +711,7 @@ class Allocator {
       AllocatorThreadId,
       ConstCharVector,
       std::less<AllocatorThreadId>,
-      StdAllocatorSysMem<std::pair<const uint32_t, ConstCharVector>>>
+      StdAllocatorSysMem<std::pair<const AllocatorThreadId, ConstCharVector>>>
       ThreadIdToTagVectorMap;
 #else
   typedef std::unordered_map<
@@ -719,7 +719,7 @@ class Allocator {
       ConstCharVector,
       std::hash<AllocatorThreadId>,
       std::equal_to<AllocatorThreadId>,
-      StdAllocatorSysMem<std::pair<const uint32_t, ConstCharVector>>>
+      StdAllocatorSysMem<std::pair<const AllocatorThreadId, ConstCharVector>>>
       ThreadIdToTagVectorMap;
 #endif
 
@@ -1433,7 +1433,7 @@ class NewOverrideBase {
 void* SafeMMapAlloc(size_t size);
 void SafeMMapFree(const void* memory, size_t size);
 
-} // OVR
+} // namespace OVR
 
 //------------------------------------------------------------------------
 // ***** OVR_DEFINE_NEW
