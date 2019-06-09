@@ -49,7 +49,7 @@ class Blitter : public RefCountBase<Blitter> {
   Blitter(const Ptr<ID3D11Device>& device);
   ~Blitter();
 
-  bool Initialize();
+  bool Initialize(bool single_channel = false);
 
   bool Blt(ID3D11RenderTargetView* dest, ID3D11ShaderResourceView* source);
   bool Blt(
@@ -61,7 +61,7 @@ class Blitter : public RefCountBase<Blitter> {
       uint32_t height);
 
  private:
-  enum PixelShaders { OneMSAA = 0, TwoOrMoreMSAA = 1, ShaderCount = 2 };
+  enum PixelShaders { OneMSAA = 0, TwoOrMoreMSAA = 1, Grayscale = 2, ShaderCount = 3 };
 
   Ptr<ID3D11Device1> Device;
   Ptr<ID3D11DeviceContext1> Context1;
@@ -74,6 +74,7 @@ class Blitter : public RefCountBase<Blitter> {
   Ptr<ID3D11SamplerState> Sampler;
   Ptr<ID3D11DepthStencilState> DepthState;
   bool AlreadyInitialized;
+  bool SingleChannel;
 
   struct BltVertex {
     float x, y;

@@ -32,6 +32,7 @@ limitations under the License.
 #include "Shaders/Blt_vs.h"
 #include "Shaders/Blt_ps.h"
 #include "Shaders/Blt_ps_ms2.h"
+#include "Shaders/GrayBlt_ps.h"
 #include <io.h>
 
 struct MSAAShader {
@@ -39,7 +40,9 @@ struct MSAAShader {
   SIZE_T Size;
 };
 
-static MSAAShader PixelShaderList[] = {{Blt_ps, sizeof(Blt_ps)}, {Blt_ps_ms2, sizeof(Blt_ps_ms2)}};
+static MSAAShader PixelShaderList[] = {{Blt_ps, sizeof(Blt_ps)},
+                                       {Blt_ps_ms2, sizeof(Blt_ps_ms2)},
+                                       {GrayBlt_ps, sizeof(GrayBlt_ps)}};
 
 namespace OVR {
 namespace D3DUtil {
@@ -59,7 +62,8 @@ Blitter::Blitter(const Ptr<ID3D11Device>& device)
       PS(),
       Sampler(),
       DepthState(),
-      AlreadyInitialized(false) {
+      AlreadyInitialized(false),
+      SingleChannel(false) {
   device->QueryInterface(IID_PPV_ARGS(&Device.GetRawRef()));
   OVR_ASSERT(Device);
 
@@ -69,7 +73,8 @@ Blitter::Blitter(const Ptr<ID3D11Device>& device)
 
 Blitter::~Blitter() {}
 
-bool Blitter::Initialize() {
+bool Blitter::Initialize(bool single_channel) {
+  SingleChannel = single_channel;
   if (!Device) {
     OVR_ASSERT(false);
     return false;
@@ -251,7 +256,9 @@ bool Blitter::Blt(
   D3D11_TEXTURE2D_DESC texDesc;
   tmpTexture->GetDesc(&texDesc);
 
-  if (texDesc.SampleDesc.Count == 1) {
+  if (SingleChannel) {
+    Context1->PSSetShader(PS[PixelShaders::Grayscale], nullptr, 0);
+  } else if (texDesc.SampleDesc.Count == 1) {
     Context1->PSSetShader(PS[PixelShaders::OneMSAA], nullptr, 0);
   } else {
     Context1->PSSetShader(PS[PixelShaders::TwoOrMoreMSAA], nullptr, 0);

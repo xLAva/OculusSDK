@@ -45,4 +45,5 @@
 #define OVR_DEBUG_HUD_STEREO_GUIDE_YAWPITCHROLL "DebugHudStereoGuideYawPitchRoll3f" // float[3]
 #define OVR_DEBUG_HUD_STEREO_GUIDE_COLOR "DebugHudStereoGuideColor4f" // float[4]
 
+
 #endif // OVR_CAPI_Keys_h

@@ -732,24 +732,22 @@ static ModuleHandleType OVR_FindLibraryPath(
 
     if (pLibOvrDllDir) {
       char developerDir8[OVR_MAX_PATH];
-      size_t length = OVR_strlcpy(
-          developerDir8,
-          pLibOvrDllDir,
-          sizeof(developerDir8)); // If missing a trailing path separator then append one.
+      size_t length = OVR_strlcpy(developerDir8, pLibOvrDllDir, sizeof(developerDir8));
 
+      // If missing a trailing path separator then append one.
       if ((length > 0) && (length < sizeof(developerDir8)) &&
           (developerDir8[length - 1] != OVR_FILE_PATH_SEPARATOR[0])) {
         length = OVR_strlcat(developerDir8, OVR_FILE_PATH_SEPARATOR, sizeof(developerDir8));
+      }
 
-        if (length < sizeof(developerDir8)) {
+      if (length < sizeof(developerDir8)) {
 #if defined(_WIN32)
-          size_t i;
-          for (i = 0; i <= length; ++i) // ASCII conversion of 8 to 16 bit text.
-            developerDir[i] = (FilePathCharType)(uint8_t)developerDir8[i];
+        size_t i;
+        for (i = 0; i <= length; ++i) // ASCII conversion of 8 to 16 bit text.
+          developerDir[i] = (FilePathCharType)(uint8_t)developerDir8[i];
 #else
-          OVR_strlcpy(developerDir, developerDir8, sizeof(developerDir));
+        OVR_strlcpy(developerDir, developerDir8, sizeof(developerDir));
 #endif
-        }
       }
     }
   }
@@ -1336,6 +1334,65 @@ OVR_PUBLIC_FUNCTION(void) ovr_Destroy(ovrSession session) {
   if (!API.ovr_Destroy.Ptr)
     return;
   API.ovr_Destroy.Ptr(session);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_InitDesktopWindow(ovrSession session, ovrDesktopWindowHandle* outWindowHandle) {
+  if (!API.ovr_InitDesktopWindow.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_InitDesktopWindow.Ptr(session, outWindowHandle);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_ShowDesktopWindow(ovrSession session, const ovrDesktopWindowDesc* windowDesc) {
+  if (!API.ovr_ShowDesktopWindow.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_ShowDesktopWindow.Ptr(session, windowDesc);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_HideDesktopWindow(ovrSession session, ovrDesktopWindowHandle windowHandle) {
+  if (!API.ovr_HideDesktopWindow.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_HideDesktopWindow.Ptr(session, windowHandle);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_GetHybridInputFocus(
+    ovrSession session,
+    ovrControllerType controllerType,
+    ovrHybridInputFocusState* outState) {
+  if (!API.ovr_GetHybridInputFocus.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_GetHybridInputFocus.Ptr(session, controllerType, outState);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_ShowAvatarHands(ovrSession session, ovrBool showHands) {
+  if (!API.ovr_ShowAvatarHands.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_ShowAvatarHands.Ptr(session, showHands);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_ShowKeyboard(ovrSession session, const ovrKeyboardDesc* keyboardDesc) {
+  if (!API.ovr_ShowKeyboard.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_ShowKeyboard.Ptr(session, keyboardDesc);
+}
+
+OVR_PUBLIC_FUNCTION(ovrResult)
+ovr_EnableDashRaycast(ovrSession session, ovrBool enableRaycast) {
+  if (!API.ovr_EnableHybridRaycast.Ptr) {
+    return ovrError_ServiceError;
+  }
+  return API.ovr_EnableHybridRaycast.Ptr(session, enableRaycast);
 }
 
 OVR_PUBLIC_FUNCTION(ovrResult)
@@ -1965,6 +2022,7 @@ ovr_SubmitFrame(
 
   return API.ovr_SubmitFrame.Ptr(session, frameIndex, viewScaleDesc, layerPtrList, layerCount);
 }
+
 
 OVR_PUBLIC_FUNCTION(ovrEyeRenderDesc)
 ovr_GetRenderDesc(ovrSession session, ovrEyeType eyeType, ovrFovPort fov) {

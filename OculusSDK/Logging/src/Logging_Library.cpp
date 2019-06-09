@@ -119,7 +119,7 @@ int64_t RepeatedMessageManager::GetLogMillisecondTimeDifference(LogTimeMs begin,
 
   RepeatedMessageManager::PrefixHashType RepeatedMessageManager::GetHash(const char* p) {
     // Fowler / Noll / Vo (FNV) Hash
-    // FNV is a great string hash for reduction of collisions, but the cost beneift is high.
+    // FNV is a great string hash for reduction of collisions, but the cost benefit is high.
     // We can get away with a fairly poor string hash here which is very fast.
     //
     PrefixHashType hash(2166136261U);
@@ -149,8 +149,14 @@ RepeatedMessageManager::HandleMessage(const char* subsystemName, Level messageLo
   PrefixHashType prefixHash = GetHash(stream);
 
   // Check to see if we have this particular message in an exception list.
-  if (RepeatedMessageExceptionSet.find(prefixHash) != RepeatedMessageExceptionSet.end())
+  if (RepeatedMessageExceptionSet.find(prefixHash) != RepeatedMessageExceptionSet.end()) {
     return HandleResult::Passed;
+  }
+
+  PrefixHashType subsystemNameHash = GetHash(subsystemName);
+  if (RepeatedMessageSubsystemExceptionSet.find(subsystemNameHash) != RepeatedMessageSubsystemExceptionSet.end()) {
+    return HandleResult::Passed;
+  }
 
   // We will need the current time below for all pathways.
   const LogTimeMs currentLogTimeMs = GetCurrentLogMillisecondTime();
@@ -174,7 +180,7 @@ RepeatedMessageManager::HandleMessage(const char* subsystemName, Level messageLo
     if (logTimeDifferenceMs < maxDeferrableDetectionTimeMs) { // If this message was soon after
       repeatedMessage.lastTimeMs = currentLogTimeMs;          // the last one...
 
-      // We actally print the first few seemingly repeated messages before deferring them.
+      // We actually print the first few seemingly repeated messages before deferring them.
       if (repeatedMessage.printedCount < printedRepeatCount) {
         repeatedMessage.printedCount++;
         return HandleResult::Passed;
@@ -301,8 +307,27 @@ void RepeatedMessageManager::RemoveRepeatedMessageException(const char* messageP
 
   PrefixHashType prefixHash = GetHash(messagePrefix);
   auto it = RepeatedMessageExceptionSet.find(prefixHash);
-  if (it != RepeatedMessageExceptionSet.end())
+  if (it != RepeatedMessageExceptionSet.end()) {
     RepeatedMessageExceptionSet.erase(it);
+  }
+}
+
+
+void RepeatedMessageManager::AddRepeatedMessageSubsystemException(const char* subsystemName) {
+  std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+  PrefixHashType subsystemNameHash = GetHash(subsystemName);
+  RepeatedMessageSubsystemExceptionSet.insert(subsystemNameHash);
+}
+
+void RepeatedMessageManager::RemoveRepeatedMessageSubsytemException(const char* subsystemName) {
+  std::lock_guard<std::recursive_mutex> lock(Mutex);
+
+  PrefixHashType subsystemNameHash = GetHash(subsystemName);
+  auto it = RepeatedMessageSubsystemExceptionSet.find(subsystemNameHash);
+  if (it != RepeatedMessageExceptionSet.end()) {
+    RepeatedMessageExceptionSet.erase(it);
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -490,9 +515,14 @@ void OutputWorker::InstallDefaultOutputPlugins()
         // If there is a console window,
         if (::GetConsoleWindow() != NULL)
         {
+            bool outputToStdout = false;
+            if (GetEnvironmentVariableW(L"OvrOutputToStdout", NULL, 0) > 0) {
+              outputToStdout = true;
+            }
+
             // Enable the console.  This logger takes 3 milliseconds per message, so it is fairly
             // slow and should be avoided if it is not needed (ie. console is not shown).
-            AddPlugin(std::make_shared<OutputConsole>());
+            AddPlugin(std::make_shared<OutputConsole>(outputToStdout));
         }
     #endif
 }
@@ -563,6 +593,14 @@ void OutputWorker::DisableAllPlugins()
 Lock* OutputWorker::GetChannelsLock()
 {
     return &ChannelsLock;
+}
+
+void OutputWorker::AddRepeatedMessageSubsystemException(const char* subsystemName) {
+    return RepeatedMessageManagerInstance.AddRepeatedMessageSubsystemException(subsystemName);
+}
+
+void OutputWorker::RemoveRepeatedMessageSubsystemException(const char* subsystemName) {
+    return RepeatedMessageManagerInstance.RemoveRepeatedMessageSubsytemException(subsystemName);
 }
 
 void OutputWorker::Start()

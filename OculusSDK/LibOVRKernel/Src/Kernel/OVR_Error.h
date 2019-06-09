@@ -186,6 +186,62 @@ namespace OVR {
       nullptr,                                             \
       __VA_ARGS__)
 
+#define OVR_MAKE_VULKAN_ERROR(errorCode, sysErrorCode, pDescription) \
+  OVR::MakeError(                                                    \
+      (errorCode),                                                   \
+      OVR::ovrSysErrorCodeType::Vulkan,                              \
+      (sysErrorCode),                                                \
+      nullptr,                                                       \
+      OVR_FILE,                                                      \
+      OVR_LINE,                                                      \
+      true,                                                          \
+      true,                                                          \
+      nullptr,                                                       \
+      "%s",                                                          \
+      (pDescription))
+
+// Note: The format string is the first part of the .../__VA_ARGS__ as per the C99-C++11 Standards.
+#define OVR_MAKE_VULKAN_ERROR_F(errorCode, sysErrorCode, ...) \
+  OVR::MakeError(                                             \
+      (errorCode),                                            \
+      OVR::ovrSysErrorCodeType::Vulkan,                       \
+      (sysErrorCode),                                         \
+      nullptr,                                                \
+      OVR_FILE,                                               \
+      OVR_LINE,                                               \
+      true,                                                   \
+      true,                                                   \
+      nullptr,                                                \
+      __VA_ARGS__)
+
+#define OVR_MAKE_OPENGL_ERROR(errorCode, sysErrorCode, pDescription) \
+  OVR::MakeError(                                                    \
+      (errorCode),                                                   \
+      OVR::ovrSysErrorCodeType::OpenGL,                              \
+      (sysErrorCode),                                                \
+      nullptr,                                                       \
+      OVR_FILE,                                                      \
+      OVR_LINE,                                                      \
+      true,                                                          \
+      true,                                                          \
+      nullptr,                                                       \
+      "%s",                                                          \
+      (pDescription))
+
+// Note: The format string is the first part of the .../__VA_ARGS__ as per the C99-C++11 Standards.
+#define OVR_MAKE_OPENGL_ERROR_F(errorCode, sysErrorCode, ...) \
+  OVR::MakeError(                                             \
+      (errorCode),                                            \
+      OVR::ovrSysErrorCodeType::OpenGL,                       \
+      (sysErrorCode),                                         \
+      nullptr,                                                \
+      OVR_FILE,                                               \
+      OVR_LINE,                                               \
+      true,                                                   \
+      true,                                                   \
+      nullptr,                                                \
+      __VA_ARGS__)
+
 // Consider using OVR_MAKE_QUIET_ERROR() instead of OVR_MAKE_ERROR() where the error
 // should not automatically log/assert.  If the error is normal (HMD unplugged) or
 // repetitive then please use OVR_MAKE_QUIET_ERROR().
@@ -332,7 +388,9 @@ enum class ovrSysErrorCodeType {
   OS, /// Windows: HRESULT or DWORD system error code from GetLastError.
   ALVR, /// AMD LiquidVR error
   NVAPI, /// NVidia API error
-  NVENC /// NVidia video encode API error
+  NVENC, /// NVidia video encode API error
+  Vulkan, /// Vulkan graphics API
+  OpenGL /// OpenGL graphics API
 };
 
 /// -----------------------------------------------------------------------------
@@ -420,6 +478,15 @@ class OVRError {
   // Property accessors
   void SetCode(ovrResult code);
   ovrResult GetCode() const;
+
+  // Example usage:
+  //   ovrResult SomeFunction() {
+  //     OVRError err = SomeOtherFunction();
+  //     return err;
+  //   }
+  operator ovrResult() const {
+    return Code;
+  }
 
   void SetSysCode(
       ovrSysErrorCodeType sysCodeType,
@@ -572,6 +639,7 @@ bool GetErrorCodeString(ovrResult errorCode, bool prefixErrorCode, OVR::String& 
 /// automatically internally.
 ///
 bool GetSysErrorCodeString(
+    ovrSysErrorCodeType sysErrorCodeType,
     ovrSysErrorCode sysErrorCode,
     bool prefixErrorCode,
     OVR::String& sResult);

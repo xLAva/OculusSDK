@@ -148,6 +148,19 @@ inline void LogDebug(Args&&... args) {
   }
 }
 
+// This acts as a replacement for the assertion dialog box, primarily for the purpose of assisting
+// in testing and automation. Instead of presenting a dialong box, this will write assertions to
+// a disk file. userParameter is a pointer to a file path to use, or 0 to drop assertion failures.
+// This handler creates the file if not found, and initially clears the file if found.
+// Calling SetAssertionHandler to set a file with a path, then later calling SetAssertionHandler
+// with another path or 0 causes the closing of the initial file.
+//
+// Example usage:
+//     SetAssertionHandler(AssertHandlerDiskFile, (intptr_t)"C:\\SomeDir\SomeFile.txt");
+//     SetAssertionHandler(AssertHandlerDiskFile, 0); // Write assertions to nowhere.
+//
+intptr_t AssertHandlerDiskFile(intptr_t userParameter, const char* title, const char* message);
+
 #define OVR_DEBUG_LOG(args) \
   do {                      \
     OVR::LogDebug args;     \

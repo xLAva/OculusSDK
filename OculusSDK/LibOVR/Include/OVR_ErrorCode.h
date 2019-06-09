@@ -148,6 +148,9 @@ typedef enum ovrErrorType_ {
   /// The external camera name is larger than OVR_EXTERNAL_CAMERA_NAME_SIZE-1
   ovrError_ExternalCameraNameWrongSize = -1024,
 
+  /// The caller doesn't have permissions for the requested action.
+  ovrError_AccessDenied = -1025,
+
   /*************************************************/
   /* Audio error range, reserved for Audio errors. */
   /*************************************************/

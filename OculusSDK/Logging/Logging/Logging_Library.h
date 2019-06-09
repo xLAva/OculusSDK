@@ -365,9 +365,9 @@ enum class WriteOption : Write_Option_t
 //    The list of N previously received messages represents the biggest potential performance cost 
 //    to this functionality. We need to check the currently incoming message against each of the 
 //    last N messages. That check needs to be fast, and the maintenance of the data structure
-//    which holds that data (e.g. caontainer heap usage) needs to be fast. One fairly fast solution 
+//    which holds that data (e.g. container heap usage) needs to be fast. One fairly fast solution 
 //    is to maintain the last N messages as a hash table of string hashes, and so when a new message
-//    is received, we do an O(1) hash table lookup. But we need to continously prune the hash table,
+//    is received, we do an O(1) hash table lookup. But we need to continuously prune the hash table,
 //    which is an O(n) operation unless we have some kind of priority_queue alongside the hash  
 //    table which tells us how to quickly find the oldest entries in the hash table. A simpler  
 //    solution is to prune the hash table only when it gets beyond N*2 messages. So we only do 
@@ -379,7 +379,7 @@ public:
   ~RepeatedMessageManager() = default;
 
   enum class HandleResult {
-    Aggregated, // The message was consumed for aggreggation (it was a repeat). Don't print it.
+    Aggregated, // The message was consumed for aggregation (it was a repeat). Don't print it.
     Passed      // The message didn't appear to be a repeat and should be printed.
   };
 
@@ -399,13 +399,22 @@ public:
   // Causes messages with the given prefix to not be subject to aggregated deferral. 
   // This is useful in case you want a specific message to be repeated, regardless of the 
   // frequency or apparent redundancy it may have. The MessagePrefix needs to be at least
-  // messagePrefixLength in length, so that it can be matched interally accurately.
+  // messagePrefixLength in length, so that it can be matched internally accurately.
   // Strings are case-sensitive.
   void AddRepeatedMessageException(const char* messagePrefix);
 
   // Removes messages previously added with AddRepeatedMessageException.
   // Strings are case-sensitive.
   void RemoveRepeatedMessageException(const char* messagePrefix);
+
+  // Causes messages with the given subsystemName to not be subject to aggregated deferral. 
+  // This is useful in case you want a specific subsystem's message to be repeated,
+  // regardless of the frequency or apparent redundancy it may have.
+  // Strings are case-sensitive.
+  void AddRepeatedMessageSubsystemException(const char* subsystemName);
+
+  // Removes messages previously added with AddRepeatedMessageSubsystemException.
+  void RemoveRepeatedMessageSubsytemException(const char* subsystemName);
 
 protected:
   // Keep the last <recentMessageCount> messages to see if any of them are repeated.
@@ -485,7 +494,7 @@ protected:
   // Converts LogTime to LogTimeMs.
   static LogTimeMs LogTimeToMillisecondTime(const LogTime& logTime);
 
-  // Returs end - begin, possibly with some fixup.
+  // Returns end - begin, possibly with some fixup.
   static int64_t GetLogMillisecondTimeDifference(LogTimeMs begin, LogTimeMs end);
 
 protected:
@@ -504,6 +513,9 @@ protected:
 
   // We don't need to store the string, just the string hash.
   std::unordered_set<PrefixHashType> RepeatedMessageExceptionSet;
+
+  // We don't need to store the string, just the string hash.
+  std::unordered_set<PrefixHashType> RepeatedMessageSubsystemExceptionSet;
 };
 
 
@@ -587,6 +599,12 @@ public:
     // Get the lock used for the channels.
     Lock* GetChannelsLock();
 
+    // Add an exception to the RepeatedMessageManager
+    void AddRepeatedMessageSubsystemException(const char* subsystemName);
+    
+    // Removes messages previously added with AddRepeatedMessageException
+    void RemoveRepeatedMessageSubsystemException(const char* subsystemName);
+
 private:
     // Is the logger running in a debugger?
     bool IsInDebugger;
@@ -656,7 +674,7 @@ private:
 
     // Append level and subsystem name to timestamp buffer
     // The buffer should point to the ending null terminator of
-    // the timstamp string.
+    // the timestamp string.
     static void AppendHeader(char* buffer, size_t bufferBytes,
                              Level level, const char* subsystemName);
 

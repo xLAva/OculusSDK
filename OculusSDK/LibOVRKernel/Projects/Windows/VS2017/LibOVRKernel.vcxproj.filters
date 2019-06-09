@@ -290,5 +290,8 @@
     <FxCompile Include="..\..\..\Src\Util\Shaders\Blt_ps_ms2.hlsl">
       <Filter>Util\Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="..\..\..\Src\Util\Shaders\GrayBlt_ps.hlsl">
+      <Filter>Util\Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

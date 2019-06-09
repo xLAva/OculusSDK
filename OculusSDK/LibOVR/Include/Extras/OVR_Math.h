@@ -1378,7 +1378,7 @@ class Size3 {
     return *this;
   }
   Size3 operator-(const Size3& b) const {
-    return Size(w - b.w, h - b.h, d - b.d);
+    return Size3(w - b.w, h - b.h, d - b.d);
   }
   Size3& operator-=(const Size3& b) {
     w -= b.w;
@@ -1390,7 +1390,7 @@ class Size3 {
     return Size3(-w, -h, -d);
   }
   Size3 operator*(const Size3& b) const {
-    return Size(w * b.w, h * b.h, d * b.d);
+    return Size3(w * b.w, h * b.h, d * b.d);
   }
   Size3& operator*=(const Size3& b) {
     w *= b.w;
@@ -4270,22 +4270,23 @@ typedef Plane<float> Planef;
 typedef Plane<double> Planed;
 
 //-----------------------------------------------------------------------------------
-// ***** ScaleAndOffset2D
+// ***** ScaleAndOffset
 
-struct ScaleAndOffset2D {
-  Vector2f Scale;
-  Vector2f Offset;
+template <class T>
+struct ScaleAndOffset {
+  T Scale;
+  T Offset;
 
-  ScaleAndOffset2D(float sx = 0.0f, float sy = 0.0f, float ox = 0.0f, float oy = 0.0f)
+  ScaleAndOffset(float sx = 0.0f, float sy = 0.0f, float ox = 0.0f, float oy = 0.0f)
       : Scale(sx, sy), Offset(ox, oy) {}
 
-  Vector2f ApplyTo(const Vector2f& input) const {
+  T ApplyTo(const T& input) const {
     return input * Scale + Offset;
   }
 
-  ScaleAndOffset2D Invert() const {
-    ScaleAndOffset2D inverted;
-    inverted.Scale = Vector2f(1.0f) / this->Scale;
+  ScaleAndOffset Invert() const {
+    ScaleAndOffset inverted;
+    inverted.Scale = T(1.0f) / this->Scale;
     inverted.Offset = -(this->Offset) * inverted.Scale;
     return inverted;
   }
@@ -4308,13 +4309,16 @@ struct ScaleAndOffset2D {
   //  Vector2f input = Vector2f(2.0f, -1.0f);
   //  input = so1.ApplyTo(input);
   //
-  ScaleAndOffset2D Combine(const ScaleAndOffset2D& nextSO) const {
-    ScaleAndOffset2D retValSO;
+  ScaleAndOffset Combine(const ScaleAndOffset& nextSO) const {
+    ScaleAndOffset retValSO;
     retValSO.Offset = this->Offset * nextSO.Scale + nextSO.Offset;
     retValSO.Scale = nextSO.Scale * this->Scale;
     return retValSO;
   }
 };
+
+typedef ScaleAndOffset<Vector2f> ScaleAndOffset2D;
+typedef ScaleAndOffset<Vector3f> ScaleAndOffset3D;
 
 //-----------------------------------------------------------------------------------
 // ***** FovPort

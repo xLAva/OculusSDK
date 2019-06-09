@@ -47,7 +47,7 @@ public:
     // If true then use stdio for output instead of platform-savvy calls.
     void SetStdioUsage(bool enable);
 
-private:
+protected:
     virtual const char* GetUniquePluginName() override;
     virtual void Write(Level level, const char* subsystem, const char* header, const char* utf8msg) override;
 

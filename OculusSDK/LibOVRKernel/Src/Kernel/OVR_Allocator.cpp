@@ -289,8 +289,19 @@ extern "C" void* crt_malloc_dbg(size_t size, int blockUse, const char* file, int
 extern "C" void* __cdecl _aligned_malloc_base(size_t size, size_t align);
 extern "C" void __cdecl _free_base(void* p);
 // extern "C" void* __cdecl _realloc_base(void* p, size_t newsize);
+#if defined(WINDOWS_SDK_VERSION) && WINDOWS_SDK_VERSION >= 17763
+// These functions aren't available in the 10.0.17763.0 Windows SDK.
+extern "C" void __cdecl _aligned_free_base(void* /*p*/) {
+  OVR_FAIL();
+}
+extern "C" void* __cdecl _aligned_realloc_base(void* /*p*/, size_t /*newSize*/, size_t /*align*/) {
+  OVR_FAIL();
+  return nullptr;
+}
+#else
 extern "C" void __cdecl _aligned_free_base(void* p);
 extern "C" void* __cdecl _aligned_realloc_base(void* p, size_t newSize, size_t align);
+#endif
 #else
 extern "C" _ACRTIMP void __cdecl _free_base(void* p);
 extern "C" void __cdecl _aligned_free_base(void* /*p*/) {

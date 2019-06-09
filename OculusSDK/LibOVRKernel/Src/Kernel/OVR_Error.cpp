@@ -25,6 +25,7 @@ limitations under the License.
 
 #include "OVR_Error.h"
 #include "OVR_Types.h"
+#include "OVR_Std.h"
 #include "OVR_String.h"
 #include "OVR_Timer.h"
 #include "OVR_DebugHelp.h"
@@ -278,7 +279,7 @@ String OVRError::GetErrorString() const {
             "  System error: %d (%x) -- %s\n", (int)SysCode, (int)SysCode, SysCodeStr);
       } else { // Else just build it with the system error code.
         OVR::String sysErrorString;
-        GetSysErrorCodeString(SysCode, false, sysErrorString);
+        GetSysErrorCodeString(SysCodeType, SysCode, false, sysErrorString);
         OVRRemoveTrailingNewlines(sysErrorString);
         ErrorString.AppendFormat(
             "  System error: %d (%x) -- %s\n", (int)SysCode, (int)SysCode, sysErrorString.ToCStr());
@@ -650,6 +651,7 @@ static const wchar_t* OVR_DXGetErrorStringW(HRESULT dwDXGIErrorCode) {
 #endif
 
 bool GetSysErrorCodeString(
+    ovrSysErrorCodeType sysErrorCodeType,
     ovrSysErrorCode sysErrorCode,
     bool prefixErrorCode,
     OVR::String& sResult) {
@@ -669,63 +671,198 @@ bool GetSysErrorCodeString(
     sResult.Clear();
   }
 
+  if (sysErrorCodeType == ovrSysErrorCodeType::Vulkan) {
+    // We have a problem here in that we can't #include <vulkan.h> because this source is
+    // distributed as part of a public SDK, and we don't want to create that dependency.
+    // However, vulkan.h errors are stable, so we can repeat them here.
+    char buffer[32];
+    itoa(sysErrorCode, buffer, 10);
+    const char* vkResultStr = buffer; // Default to the numerical value.
+
+    switch (sysErrorCode) {
+      case 0:
+        vkResultStr = "VK_SUCESS";
+        break;
+      case 1:
+        vkResultStr = "VK_NOT_READY";
+        break;
+      case 2:
+        vkResultStr = "VK_TIMEOUT";
+        break;
+      case 3:
+        vkResultStr = "VK_EVENT_SET";
+        break;
+      case 4:
+        vkResultStr = "VK_EVENT_RESET";
+        break;
+      case 5:
+        vkResultStr = "VK_INCOMPLETE";
+        break;
+      case -1:
+        vkResultStr = "VK_ERROR_OUT_OF_HOST_MEMORY";
+        break;
+      case -2:
+        vkResultStr = "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        break;
+      case -3:
+        vkResultStr = "VK_ERROR_INITIALIZATION_FAILED";
+        break;
+      case -4:
+        vkResultStr = "VK_ERROR_DEVICE_LOST";
+        break;
+      case -5:
+        vkResultStr = "VK_ERROR_MEMORY_MAP_FAILED";
+        break;
+      case -6:
+        vkResultStr = "VK_ERROR_LAYER_NOT_PRESENT";
+        break;
+      case -7:
+        vkResultStr = "VK_ERROR_EXTENSION_NOT_PRESENT";
+        break;
+      case -8:
+        vkResultStr = "VK_ERROR_FEATURE_NOT_PRESENT";
+        break;
+      case -9:
+        vkResultStr = "VK_ERROR_INCOMPATIBLE_DRIVER";
+        break;
+      case -10:
+        vkResultStr = "VK_ERROR_TOO_MANY_OBJECTS";
+        break;
+      case -11:
+        vkResultStr = "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        break;
+      case -12:
+        vkResultStr = "VK_ERROR_FRAGMENTED_POOL";
+        break;
+      case -1000000000:
+        vkResultStr = "VK_ERROR_SURFACE_LOST_KHR";
+        break;
+      case -1000000001:
+        vkResultStr = "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        break;
+      case 1000001003:
+        vkResultStr = "VK_SUBOPTIMAL_KHR";
+        break;
+      case -1000001004:
+        vkResultStr = "VK_ERROR_OUT_OF_DATE_KHR";
+        break;
+      case -1000003001:
+        vkResultStr = "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+        break;
+      case -1000011001:
+        vkResultStr = "VK_ERROR_VALIDATION_FAILED_EXT";
+        break;
+      case -1000012000:
+        vkResultStr = "VK_ERROR_INVALID_SHADER_NV";
+        break;
+      case -1000069000:
+        vkResultStr = "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+        break;
+      case -1000072003:
+        vkResultStr = "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR";
+        break;
+      case -1000174001:
+        vkResultStr = "VK_ERROR_NOT_PERMITTED_EXT";
+        break;
+      default:
+        // Use the numerical default above.
+        break;
+    }
+
+    OVR::OVR_strlcat(errorBuffer, vkResultStr, sizeof(errorBuffer));
+  } else if (sysErrorCodeType == ovrSysErrorCodeType::OpenGL) {
+    char buffer[32];
+    itoa(sysErrorCode, buffer, 10);
+    const char* glResultStr = buffer; // Default to the numerical value.
+
+    switch (sysErrorCode) {
+      case 0:
+        glResultStr = "GL_NO_ERROR";
+        break;
+      case 0x0500:
+        glResultStr = "GL_INVALID_ENUM";
+        break;
+      case 0x0501:
+        glResultStr = "GL_INVALID_VALUE";
+        break;
+      case 0x0502:
+        glResultStr = "GL_INVALID_OPERATION";
+        break;
+      case 0x0503:
+        glResultStr = "GL_STACK_OVERFLOW";
+        break;
+      case 0x0504:
+        glResultStr = "GL_STACK_UNDERFLOW";
+        break;
+      case 0x0505:
+        glResultStr = "GL_OUT_OF_MEMORY";
+        break;
+      default:
+        // Use the numerical default above.
+        break;
+    }
+
+    OVR::OVR_strlcat(errorBuffer, glResultStr, sizeof(errorBuffer));
+  } else if (sysErrorCodeType == ovrSysErrorCodeType::OS) {
 #if defined(OVR_OS_WIN32)
-  // Note: It may be useful to use FORMAT_MESSAGE_FROM_HMODULE here to get a module-specific error
-  // string if our source of errors ends up including more than just system-native errors. For
-  // example, a third party module with custom errors defined in it.
+    // Note: It may be useful to use FORMAT_MESSAGE_FROM_HMODULE here to get a module-specific error
+    // string if our source of errors ends up including more than just system-native errors. For
+    // example, a third party module with custom errors defined in it.
 
-  WCHAR errorBufferW[1024];
-  DWORD errorBufferWCapacity = OVR_ARRAY_COUNT(errorBufferW);
-  DWORD length = FormatMessageW(
-      FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-      nullptr,
-      (DWORD)sysErrorCode,
-      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-      errorBufferW,
-      errorBufferWCapacity,
-      nullptr);
+    WCHAR errorBufferW[1024];
+    DWORD errorBufferWCapacity = OVR_ARRAY_COUNT(errorBufferW);
+    DWORD length = FormatMessageW(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        (DWORD)sysErrorCode,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        errorBufferW,
+        errorBufferWCapacity,
+        nullptr);
 
-  if (!length) // If failed...
-  {
-    if (HRESULT_FACILITY(sysErrorCode) == _FACDXGI) // If it is a DXGI error...
+    if (!length) // If failed...
     {
-      // This situation occurs on Windows 7. You can't use FORMAT_MESSAGE_FROM_HMODULE to solve it
-      // either. We can only use DXGetErrorString or manually handle it.
-      const wchar_t* pStr = OVR_DXGetErrorStringW(sysErrorCode);
+      if (HRESULT_FACILITY(sysErrorCode) == _FACDXGI) // If it is a DXGI error...
+      {
+        // This situation occurs on Windows 7. You can't use FORMAT_MESSAGE_FROM_HMODULE to solve it
+        // either. We can only use DXGetErrorString or manually handle it.
+        const wchar_t* pStr = OVR_DXGetErrorStringW(sysErrorCode);
 
-      if (pStr) {
-        wcscpy_s(errorBufferW, OVR_ARRAY_COUNT(errorBufferW), pStr);
-        length = (DWORD)wcslen(errorBufferW);
+        if (pStr) {
+          wcscpy_s(errorBufferW, OVR_ARRAY_COUNT(errorBufferW), pStr);
+          length = (DWORD)wcslen(errorBufferW);
+        }
       }
     }
-  }
 
-  if (length) // If errorBufferW contains what we are looking for...
-  {
-    // Need to convert WCHAR errorBuffer to UTF8 char sResult;
-    const auto requiredUTF8Length =
-        OVR::UTF8Util::Strlcpy(errorBuffer, OVR_ARRAY_COUNT(errorBuffer), errorBufferW);
-    if (requiredUTF8Length >=
-        OVR_ARRAY_COUNT(errorBuffer)) // Zero out if too big (XXX truncate instead?)
-      errorBuffer[0] = '\0';
-    // Else fall through
-  } // Else fall through
+    if (length) // If errorBufferW contains what we are looking for...
+    {
+      // Need to convert WCHAR errorBuffer to UTF8 char sResult;
+      const auto requiredUTF8Length =
+          OVR::UTF8Util::Strlcpy(errorBuffer, OVR_ARRAY_COUNT(errorBuffer), errorBufferW);
+      if (requiredUTF8Length >=
+          OVR_ARRAY_COUNT(errorBuffer)) // Zero out if too big (XXX truncate instead?)
+        errorBuffer[0] = '\0';
+      // Else fall through
+    } // Else fall through
 #else
 #if (((_POSIX_C_SOURCE >= 200112L) || (_XOPEN_SOURCE >= 600)) && !_GNU_SOURCE) || \
     defined(__APPLE__) || defined(__BSD__)
-  const int result = strerror_r((int)sysErrorCode, errorBuffer, OVR_ARRAY_COUNT(errorBuffer));
+    const int result = strerror_r((int)sysErrorCode, errorBuffer, OVR_ARRAY_COUNT(errorBuffer));
 
-  if (result != 0) // If failed... [result is 0 upon success; result will be EINVAL if the code is
-    // not recognized; ERANGE if buffer didn't have enough capacity.]
-    errorBuffer[0] = '\0'; // re-null-terminate, in case strerror_r left it in an invalid state.
+    if (result != 0) // If failed... [result is 0 upon success; result will be EINVAL if the code is
+      // not recognized; ERANGE if buffer didn't have enough capacity.]
+      errorBuffer[0] = '\0'; // re-null-terminate, in case strerror_r left it in an invalid state.
 #else
-  const char* result = strerror_r((int)sysErrorCode, errorBuffer, OVR_ARRAY_COUNT(errorBuffer));
+    const char* result = strerror_r((int)sysErrorCode, errorBuffer, OVR_ARRAY_COUNT(errorBuffer));
 
-  if (result == nullptr) // Implementations in practice seem to always return a pointer, though the
-    // behavior isn't formally standardized.
-    errorBuffer[0] = '\0'; // re-null-terminate, in case strerror_r left it in an invalid state.
+    if (result ==
+        nullptr) // Implementations in practice seem to always return a pointer, though the
+      // behavior isn't formally standardized.
+      errorBuffer[0] = '\0'; // re-null-terminate, in case strerror_r left it in an invalid state.
 #endif
 #endif
+  }
 
   // Fall through functionality of simply printing the value as an integer.
   if (errorBuffer[0]) // If errorBuffer was successfully written above...

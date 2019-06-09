@@ -763,8 +763,7 @@ struct OVR_GUID {
 // The user of this library can override the default assertion handler and provide their own.
 namespace OVR {
 // The return value meaning is reserved for future definition and currently has no effect.
-typedef intptr_t (
-    *OVRAssertionHandler)(intptr_t userParameter, const char* title, const char* message);
+typedef intptr_t (*OVRAssertionHandler)(intptr_t userParam, const char* title, const char* msg);
 
 // Returns the current assertion handler.
 OVRAssertionHandler GetAssertionHandler(intptr_t* userParameter = NULL);
@@ -776,6 +775,7 @@ OVRAssertionHandler GetAssertionHandler(intptr_t* userParameter = NULL);
 //     message)) {
 //         MessageBox(title, message);
 //         OVR_DEBUG_BREAK;
+//         return 0;
 //     }
 void SetAssertionHandler(OVRAssertionHandler assertionHandler, intptr_t userParameter = 0);
 

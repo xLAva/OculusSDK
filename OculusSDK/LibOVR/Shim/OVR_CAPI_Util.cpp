@@ -23,9 +23,7 @@ limitations under the License.
 #include <Extras/OVR_CAPI_Util.h>
 #include <Extras/OVR_StereoProjection.h>
 
-#include <algorithm>
 #include <limits.h>
-#include <memory>
 
 #if !defined(_WIN32)
 #include <assert.h>
@@ -44,11 +42,6 @@ limitations under the License.
 #endif
 
 #if defined(_WIN32)
-// Prevents <Windows.h> from defining min() and max() macro symbols.
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
 #include <windows.h>
 #endif
 
@@ -58,12 +51,18 @@ limitations under the License.
 __pragma(comment(linker, "/INCLUDE:" OVR_ON32("_") "exported_openxr_version"))
 #endif // defined(OVR_DLL_BUILD) && defined(OVR_OPENXR_SUPPORT_ENABLED)
 
-    // Used to generate projection from ovrEyeDesc::Fov
-    OVR_PUBLIC_FUNCTION(ovrMatrix4f) ovrMatrix4f_Projection(
-        ovrFovPort fov,
-        float znear,
-        float zfar,
-        unsigned int projectionModFlags) {
+    template <typename T>
+    T ovrMax(T a, T b) {
+  return a > b ? a : b;
+}
+template <typename T>
+T ovrMin(T a, T b) {
+  return a < b ? a : b;
+}
+
+// Used to generate projection from ovrEyeDesc::Fov
+OVR_PUBLIC_FUNCTION(ovrMatrix4f)
+ovrMatrix4f_Projection(ovrFovPort fov, float znear, float zfar, unsigned int projectionModFlags) {
   bool leftHanded = (projectionModFlags & ovrProjection_LeftHanded) > 0;
   bool flipZ = (projectionModFlags & ovrProjection_FarLessThanNear) > 0;
   bool farAtInfinity = (projectionModFlags & ovrProjection_FarClipAtInfinity) > 0;
@@ -303,7 +302,7 @@ static float wavPcmBytesToFloat(const void* data, int32_t sizeInBits, bool swapB
   else if (sizeInBits == 32)
     result = *((int32_t*)data) / (float)INT_MAX;
 
-  return std::max(-1.0f, result);
+  return ovrMax(-1.0f, result);
 }
 
 OVR_PUBLIC_FUNCTION(ovrResult)
@@ -327,7 +326,7 @@ ovr_GenHapticsFromAudioData(
   for (int32_t i = 0; i < hapticsSampleCount; ++i) {
     float sample = audioChannel->Samples[(int32_t)(i * samplesPerStep)];
     uint8_t hapticSample =
-        (uint8_t)std::min(UCHAR_MAX, (int)round(fabs(sample) * kHapticsMaxAmplitude));
+        (uint8_t)ovrMin(UCHAR_MAX, (int)round(fabs(sample) * kHapticsMaxAmplitude));
     hapticsSamples[i] = hapticSample;
   }
 

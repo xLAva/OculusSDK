@@ -58,6 +58,14 @@ enum WindowsVersion { Windows7_SP1 = 0, Windows8, Windows8_1, Windows10, Windows
 bool IsAtLeastWindowsVersion(WindowsVersion version);
 bool IsAtMostWindowsVersion(WindowsVersion version);
 
+// Returns the current module (e.g. exe or dll) path. If executed within a DLL, it returns the
+// DLL path.
+std::string GetCurrentModuleFilePath8();
+
+// Returns the current module (e.g. exe or dll) directory. If executed within a DLL, it returns the
+// DLL directory. Returns a path that ends with a path separator.
+std::string GetCurrentModuleDirectoryPath8();
+
 // Retrives the root of the Oculus install directory
 bool GetOVRRuntimePath(OVR::String& runtimePath);
 

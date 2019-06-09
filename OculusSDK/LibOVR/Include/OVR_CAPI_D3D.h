@@ -84,8 +84,9 @@ ovr_CreateTextureSwapChainDX(
 ///
 /// <b>Example code</b>
 ///     \code{.cpp}
-///         ovr_GetTextureSwapChainBufferDX(session, chain, 0, IID_ID3D11Texture2D, &d3d11Texture);
-///         ovr_GetTextureSwapChainBufferDX(session, chain, 1, IID_PPV_ARGS(&dxgiResource));
+///         ovr_GetTextureSwapChainBufferDX(s, d3d11Chain, 0, IID_ID3D11Texture2D, &d3d11Texture);
+///         ovr_GetTextureSwapChainBufferDX(s, d3d11Chain, 1, IID_PPV_ARGS(&dxgiResource));
+///         ovr_GetTextureSwapChainBufferDX(s, d3d12Chain, 0, IID_ID3D12Resource, &d3d12Texture);
 ///     \endcode
 ///
 OVR_PUBLIC_FUNCTION(ovrResult)

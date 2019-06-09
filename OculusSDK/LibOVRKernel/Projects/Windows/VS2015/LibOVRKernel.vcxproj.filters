@@ -162,18 +162,12 @@
     <ClInclude Include="..\..\..\Src\Util\Util_GL_Blitter.h">
       <Filter>Util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Logging\include\Logging_OutputPlugins.h">
-      <Filter>Logging</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Logging\include\Logging_Tools.h">
-      <Filter>Logging</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Logging\include\Logging_Library.h">
-      <Filter>Logging</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\Src\Kernel\OVR_Error.h">
       <Filter>Kernel</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Logging\Logging_Library.h" />
+    <ClInclude Include="..\..\..\..\Logging\Logging_Tools.h" />
+    <ClInclude Include="..\..\..\..\Logging\Logging_OutputPlugins.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Src\Kernel\OVR_File.cpp">
@@ -307,6 +301,9 @@
       <Filter>Util\Shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\..\..\Src\Util\Shaders\Blt_ps_ms2.hlsl">
+      <Filter>Util\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\..\Src\Util\Shaders\GrayBlt_ps.hlsl">
       <Filter>Util\Shaders</Filter>
     </FxCompile>
   </ItemGroup>

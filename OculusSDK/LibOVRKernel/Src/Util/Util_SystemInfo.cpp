@@ -469,7 +469,10 @@ std::string GetProcessPath(HANDLE processHandle, bool fileNameOnly, bool enableE
     DWORD dwProcessId = GetProcessId(processHandle);
     DWORD dwLastError = GetLastError();
     OVR::String strError;
-    OVR::GetSysErrorCodeString(dwLastError, false, strError);
+    if (dwLastError == 31) // Windows reports "A device attached to the system is not functioning."
+      strError = "Process has previously exited.";
+    else
+      OVR::GetSysErrorCodeString(ovrSysErrorCodeType::OS, dwLastError, false, strError);
 
     char buffer[256];
     snprintf(
@@ -1206,6 +1209,8 @@ bool SettingsManager::WriteValue(
       ((options & OptionUse32BitDatabase) ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
   LONG regResult =
       RegCreateKeyExW(rootKey, subKey, 0, nullptr, 0, keyOptions, nullptr, &hKey, nullptr);
+  // If regResult fails with a value of 5 (ERROR_ACCESS_DENIED), it's often because the process
+  // is trying to write to HLEY_LOCAL_MACHINE and doesn't have admin privileges.
 
   if (regResult == ERROR_SUCCESS) {
     regResult = RegSetValueExW(
@@ -1263,6 +1268,8 @@ bool SettingsManager::WriteValue(const char* path, uint32_t value, int options) 
       ((options & OptionUse32BitDatabase) ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
   LONG regResult =
       RegCreateKeyExW(rootKey, subKey, 0, nullptr, 0, keyOptions, nullptr, &hKey, nullptr);
+  // If regResult fails with a value of 5 (ERROR_ACCESS_DENIED), it's often because the process
+  // is trying to write to HLEY_LOCAL_MACHINE and doesn't have admin privileges.
 
   if (regResult == ERROR_SUCCESS) {
     regResult = RegSetValueExW(
@@ -1310,6 +1317,8 @@ bool SettingsManager::WriteValue(const char* path, uint64_t value, int options) 
       ((options & OptionUse32BitDatabase) ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
   LONG regResult =
       RegCreateKeyExW(rootKey, subKey, 0, nullptr, 0, keyOptions, nullptr, &hKey, nullptr);
+  // If regResult fails with a value of 5 (ERROR_ACCESS_DENIED), it's often because the process
+  // is trying to write to HLEY_LOCAL_MACHINE and doesn't have admin privileges.
 
   if (regResult == ERROR_SUCCESS) {
     regResult = RegSetValueExW(
@@ -1381,6 +1390,8 @@ bool SettingsManager::WriteValue(
       ((options & OptionUse32BitDatabase) ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
   LONG regResult =
       RegCreateKeyExW(rootKey, subKey, 0, nullptr, 0, keyOptions, nullptr, &hKey, nullptr);
+  // If regResult fails with a value of 5 (ERROR_ACCESS_DENIED), it's often because the process
+  // is trying to write to HLEY_LOCAL_MACHINE and doesn't have admin privileges.
 
   if (regResult == ERROR_SUCCESS) {
     regResult = RegSetValueExW(
@@ -1463,6 +1474,8 @@ bool SettingsManager::DeleteValue(const char* path, bool* wasPresent, int option
             result =
                 (RegGetValueW(hKey, nullptr, stringName, RRF_RT_ANY, &dwType, nullptr, nullptr) !=
                  ERROR_SUCCESS);
+          // If result fails with a value of 5 (ERROR_ACCESS_DENIED), it's often because the process
+          // is trying to write to HLEY_LOCAL_MACHINE and doesn't have admin privileges.
         }
 
         RegCloseKey(hKey);
@@ -1809,6 +1822,25 @@ bool GetOVRRuntimePathW(wchar_t runtimePath[MAX_PATH]) {
 }
 
 #endif // _WIN32
+
+std::string GetCurrentModuleFilePath8() {
+#ifdef _WIN32
+  wchar_t path[MAX_PATH] = {'\0'};
+  if (GetModuleFileNameW(NULL, path, MAX_PATH))
+    return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(path);
+#else
+  // To do.
+#endif
+  return std::string();
+}
+
+std::string GetCurrentModuleDirectoryPath8() {
+  std::string filePath = GetCurrentModuleFilePath8();
+  size_t pos = filePath.find_last_of("/\\");
+  if (pos != std::string::npos)
+    filePath.resize(pos + 1);
+  return filePath;
+}
 
 bool GetOVRRuntimePath(String& runtimePath) {
   runtimePath.Clear();
